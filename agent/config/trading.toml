@@ -1,0 +1,37 @@
+# Flint 交易标的与执行配置(非风控参数)。
+
+[universe]
+symbols = ["AAPL.US","MSFT.US","GOOGL.US","AMZN.US","NVDA.US","META.US","TSLA.US",
+           "GLD.US","UGL.US","SLV.US","AGQ.US","USO.US"]
+market  = ["QQQ.US","SPY.US"]    # regime 指标,不交易
+
+[execution]
+commission_per_share = 0.02
+# outside_rth 由 session 解析:Intraday→RTH_ONLY, Pre/Post→ANY_TIME, Overnight→OVERNIGHT
+
+[models]
+# 档位 → provider/model。现在全用 Claude;后期接 DeepSeek 等只改这里(业务代码不动)。
+# 接 DeepSeek 示例:flash = { provider="deepseek", model="deepseek-chat", base_url="https://api.deepseek.com", api_key_env="DEEPSEEK_API_KEY" }
+trader = { provider = "claude", model = "" }                  # 交易决策(真正的 edge):默认 Opus
+flash  = { provider = "claude", model = "claude-haiku-4-5" }  # dreaming / 唤醒简报:便宜的 Haiku(将来换 DeepSeek)
+
+[embeddings]
+# fastembed:进程内本地 ONNX 小模型(同那个 app 的 MiniLM/BGE/E5),零 API 成本。
+# 首次 embed 会自动下载权重(~90MB)。装在 .venv 里(lancedb + fastembed)。
+# 可换:BAAI/bge-small-en-v1.5、BAAI/bge-small-zh-v1.5、intfloat/multilingual-e5-large 等。
+# 也支持 provider="ollama"(base_url=http://localhost:11434)或 openai 兼容端。
+provider = "fastembed"
+model    = "sentence-transformers/all-MiniLM-L6-v2"
+base_url = "http://localhost:11434"   # 仅 provider=ollama 时用
+
+[cadence]
+# 各信号源进程的节奏(秒)。技术面频次是「高频旋钮」。
+technical_loop_sec = 1800        # 现状 ~30min;调小即提高交易频次
+event_loop_sec     = 60          # 舆情对延迟敏感,跑得快
+news_poll_sec      = 300         # 资讯抓取
+news_symbol_throttle_sec = 0.5   # 逐标的抓取间隔,避开 longbridge 429 限流
+reconciler_poll_sec = 15         # 对账(无 WebSocket 时的轮询间隔)
+risk_monitor_sec   = 10          # 熔断器扫描
+executor_poll_sec  = 10          # Executor 消费意图队列的轮询间隔
+reflect_check_sec  = 600         # 做梦检查(满足睡眠期+今日未做梦才真做)
+heartbeat_stale_sec = 120        # 心跳超过此值视为进程死亡

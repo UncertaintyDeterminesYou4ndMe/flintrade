@@ -1,0 +1,12 @@
+{
+  "capital": 10000.0,
+  "position": null,
+  "realized_pnl": 0,
+  "trade_count": 0,
+  "trades": [],
+  "last_scan": null,
+  "pending_order": null,
+  "cancelled_orders": [],
+  "created": "1970-01-01",
+  "commission_per_share": 0.02
+}

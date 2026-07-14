@@ -1,0 +1,22 @@
+logs/
+*.log
+__pycache__/
+.DS_Store
+autoresearch-results.tsv
+
+# Credentials — NEVER commit. Single source of truth for LONGBRIDGE_* secrets.
+flint.env
+flint.env.local
+
+# Flint agent SQLite (runtime state, not versioned)
+flint.db
+flint.db-wal
+flint.db-shm
+
+# venv (memory subsystem deps: lancedb, fastembed)
+.venv/
+flint_lance/
+.daemon.lock
+
+# launchd plist contains real credentials — template is com.flint.daemon.plist.example
+launchd/com.flint.daemon.plist

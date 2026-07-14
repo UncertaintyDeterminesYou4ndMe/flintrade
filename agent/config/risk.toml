@@ -1,0 +1,49 @@
+# Flint 组合风控引擎配置 —— 保守档(conservative)
+# 取代旧的「一仓制 + $1200 固定本金」。所有数值运行时可改,Executor 热加载。
+# 资金模型:多空 + 现金(不融资)。
+
+[portfolio]
+max_concurrent_positions = 3     # 让 max_open_risk_pct(总风险)成为真正约束,而非仓数硬卡
+max_gross_exposure_pct   = 100   # 总持仓名义市值(多+空的绝对值之和) / 权益 ≤ 100% = 现金,不融资
+max_open_risk_pct        = 4     # 所有持仓 (entry-stop)*qty 之和 / 权益 ≤ 4%
+max_per_symbol_pct       = 40    # 单票名义市值 / 权益 ≤ 40%
+
+[per_trade]
+max_risk_pct               = 2   # 单笔最大风险 ≤ 2% 权益(保守;沿用旧 §7 的 3% 收紧)
+volume_ratio_floor         = 0.3 # volume_ratio < 0.3 拒(旧 §8,回测 +$82)
+session_close_blackout_min = 30  # 距 session 收盘 < 30min 不开新仓(旧 §9,回测 +$6)
+revenge_cooldown_min       = 60  # 同票平亏损单后 60min 内不再开仓(旧 §7 no-revenge 量化)
+min_stop_distance_pct      = 0.1 # entry 与 stop 距离过近(<0.1%)视为无效止损,拒
+adopt_protective_stop_pct  = 3   # reconciler 纳管未追踪仓位时,补的保护性 stop 距离(% of 成本)
+adopt_untracked_drift      = false # reconciler 是否自动纳管「券商有、库里没有」的未追踪仓位。
+                                   # 默认 false = 只告警(add_signal kind=drift),不擅自建仓。
+                                   # 决策回路从未批准的仓位不应被静默计入风控;开为 true 仅在你
+                                   # 确认「丢确认」场景普遍、且愿意接受自动补保护性 stop 时。
+
+[clusters]
+# 相关性簇:取代一仓制提供的「伪分散」。同簇高度相关,合并限额。
+mega_tech = ["AAPL.US","MSFT.US","GOOGL.US","AMZN.US","NVDA.US","META.US","TSLA.US"]
+gold      = ["GLD.US","UGL.US"]
+silver    = ["SLV.US","AGQ.US"]
+oil       = ["USO.US"]
+max_per_cluster_pct = 60         # 单簇名义市值 / 权益 ≤ 60%(防 2 个仓全是 mega tech 的假分散)
+
+[direction]
+allow_short  = true              # 多空 + 现金
+allow_margin = false             # 不融资:gross ≤ 100%
+
+[equity]
+# fixed = Flint 只用分配的 sleeve 本金,reconciler 不随券商真实净值同步;
+# broker = equity 同步券商 net_assets。真实账户 $126K,这里只分配 $1万 给 bot。
+mode       = "fixed"
+sleeve_usd = 10000
+
+[circuit_breaker]
+daily_loss_limit_pct = 5         # 当日权益自 day_start 回撤 > 5% → HALT 全局停手
+flatten_on_halt      = false     # 熔断时是否自动平仓(默认 false:仅停新单,平仓交给人/risk_monitor)
+
+[priority]
+# 冲突仲裁:同票反向 intent 时,高优先级胜。数值越大越优先。
+user      = 100                  # 用户主动交易最高
+event     = 50                   # 舆情/catalyst
+technical = 10                   # 技术面 loop
