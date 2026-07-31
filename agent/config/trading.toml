@@ -12,7 +12,8 @@ commission_per_share = 0.02
 [models]
 # 档位 → provider/model。业务代码只认 tier(trader/flash),换厂商只改这里。
 # provider 注册表见 agent/llm.py PROVIDERS。内置(API key 一律从环境变量读,不落配置):
-#   claude-cli — 走本机 Claude Code CLI,免 API key(需要装 claude 命令)
+#   claude-cli — 走本机 Claude Code CLI,吃 Claude 订阅(需要装 claude 命令)
+#   kimi-cli   — 走本机 kimi CLI,吃 Kimi Code 订阅 plan(kimi login 后免 key;≠ moonshot 开放平台)
 #   anthropic  — Anthropic Messages API      ($ANTHROPIC_API_KEY)
 #   openai     — OpenAI                       ($OPENAI_API_KEY)
 #   deepseek   — DeepSeek                     ($DEEPSEEK_API_KEY)
@@ -21,6 +22,7 @@ commission_per_share = 0.02
 #   ollama     — 本地 Ollama,无 key           (base_url 默认 http://localhost:11434/v1)
 #   openai_compatible — 任意兼容端,必须自带 base_url ($LLM_API_KEY 或自定义 api_key_env)
 # 示例:
+#   trader = { provider = "kimi-cli",   model = "k2" }              # 用 kimi CLI 里的模型别名,同样钉死
 #   trader = { provider = "anthropic",  model = "claude-sonnet-5" }
 #   trader = { provider = "deepseek",   model = "deepseek-chat" }
 #   trader = { provider = "moonshot",   model = "kimi-k2-0711-preview" }

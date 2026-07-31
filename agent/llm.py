@@ -43,7 +43,9 @@ def _dry() -> bool:
 # wire ∈ {"cli", "openai", "anthropic"}。base_url 是默认值,tier 配置可覆盖;
 # openai wire 的约定:base_url 已含版本段(如 …/v1),实际请求 = base_url + "/chat/completions"。
 PROVIDERS: dict[str, dict] = {
-    "claude-cli": {"wire": "cli"},                      # Claude Code CLI,免 API key
+    "claude-cli": {"wire": "cli", "cli": "claude"},     # Claude Code 订阅,免 API key
+    "kimi-cli":   {"wire": "cli", "cli": "kimi"},       # Kimi Code 订阅 plan(kimi login 后免 key)
+                                                        # 注意:≠ moonshot(开放平台按量计费)
     "anthropic":  {"wire": "anthropic",
                    "base_url": "https://api.anthropic.com",
                    "api_key_env": "ANTHROPIC_API_KEY"},
@@ -132,25 +134,44 @@ def resolve_tier(tier: str) -> dict:
     return merged
 
 
-def _complete_claude_cli(user_prompt: str, system_prompt: str | None, model: str,
-                         max_budget_usd: float) -> str:
-    args = ["claude", "-p", "--allowedTools", "", "--max-budget-usd", str(max_budget_usd)]
+def _complete_cli(user_prompt: str, system_prompt: str | None, cfg: dict,
+                  max_budget_usd: float) -> str:
+    """订阅制 provider 走本机 agent CLI 子进程 —— CLI 自己管 OAuth/plan 计费。
+
+    claude:有 --system-prompt-file 与 --max-budget-usd。
+    kimi:  只有 -p/--prompt 与 -m;system prompt 以分隔线并入 prompt(纯分析
+           调用,无工具,注意力损失可接受)。
+    """
+    bin_, model = cfg.get("cli", "claude"), cfg.get("model", "")
     tmp = None
-    if system_prompt:
-        tmp = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
-        tmp.write(system_prompt)
-        tmp.close()
-        args += ["--system-prompt-file", tmp.name]
-    if model:
-        args += ["--model", model]
-    args.append(user_prompt)
+    if bin_ == "kimi":
+        text = f"{system_prompt}\n\n---\n\n{user_prompt}" if system_prompt else user_prompt
+        args = ["kimi", "-p", text] + (["-m", model] if model else [])
+        nargs = len(args)
+    else:  # claude
+        args = ["claude", "-p", "--allowedTools", "", "--max-budget-usd", str(max_budget_usd)]
+        if system_prompt:
+            tmp = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
+            tmp.write(system_prompt)
+            tmp.close()
+            args += ["--system-prompt-file", tmp.name]
+        if model:
+            args += ["--model", model]
+        args.append(user_prompt)
+        nargs = len(args)
     if _dry():
-        print(f"[llm DRY] claude argv: {args[:-1] + ['<prompt %d chars>' % len(user_prompt)]}",
+        print(f"[llm DRY] {bin_} argv({nargs}): <prompt {len(user_prompt)} chars> model={model}",
               file=sys.stderr)
         return '{"action":"WAIT","reasoning":"[llm dry-run]"}'
     try:
-        res = subprocess.run(args, capture_output=True, text=True, timeout=300)
-        return res.stdout
+        res = subprocess.run(args, capture_output=True, text=True,
+                             timeout=int(cfg.get("timeout_sec", 300)))
+        out = res.stdout
+        if bin_ == "kimi":  # 洗掉 kimi -p 的装饰:行首圆点、尾部 resume 提示
+            lines = [l for l in out.splitlines()
+                     if not l.startswith("To resume this session:")]
+            out = "\n".join(l[2:] if l.startswith("• ") else l for l in lines).strip()
+        return out
     finally:
         if tmp:
             os.unlink(tmp.name)
@@ -217,8 +238,7 @@ def complete(user_prompt: str, *, system_prompt: str | None = None,
     cfg = resolve_tier(tier)
     wire = cfg["wire"]
     if wire == "cli":
-        return _complete_claude_cli(user_prompt, system_prompt, cfg.get("model", ""),
-                                    max_budget_usd)
+        return _complete_cli(user_prompt, system_prompt, cfg, max_budget_usd)
     if wire == "openai":
         return _complete_openai(user_prompt, system_prompt, cfg)
     if wire == "anthropic":
@@ -326,8 +346,9 @@ def _cli_check(live: bool) -> int:
         line = f"{tier}: provider={prov} wire={wire} model={model}"
         if wire == "cli":
             import shutil
-            ok = shutil.which("claude") is not None
-            line += " | claude CLI: " + ("找到" if ok else "未安装(装 Claude Code,或改用 API provider)")
+            bin_ = cfg.get("cli", "claude")
+            ok = shutil.which(bin_) is not None
+            line += f" | {bin_} CLI: " + ("找到" if ok else "未安装(装对应 agent CLI,或改用 API provider)")
         else:
             env = cfg.get("api_key_env", "")
             ok = bool(os.environ.get(env)) if env else True

@@ -34,11 +34,13 @@ Do not make these silently for the user — surface them:
 1. **Broker credentials** (free paper account): https://open.longbridge.com →
    fill `LONGBRIDGE_APP_KEY` / `APP_SECRET` / `ACCESS_TOKEN` in `flint.env`.
 2. **LLM provider**: default is the local `claude` CLI (zero config with
-   Claude Code). To use another vendor, edit `agent/config/trading.toml`
-   `[models]` (providers: `anthropic`, `openai`, `deepseek`, `moonshot`,
-   `openrouter`, `ollama`, `openai_compatible`) and export the matching API
-   key in `flint.env`. Verify with `.venv/bin/python -m agent.llm check`
-   (free) and `.venv/bin/python -m agent.llm ping` (one paid round-trip).
+   Claude Code). Subscription plans ride their CLIs: `claude-cli` (Claude)
+   and `kimi-cli` (Kimi Code plan, after `kimi login`) — no API key either
+   way. API-key vendors: edit `agent/config/trading.toml` `[models]`
+   (providers: `anthropic`, `openai`, `deepseek`, `moonshot`, `openrouter`,
+   `ollama`, `openai_compatible`) and export the matching key in
+   `flint.env`. Verify with `.venv/bin/python -m agent.llm check` (free)
+   and `.venv/bin/python -m agent.llm ping` (one paid round-trip).
 3. **Go live on the paper account**: set `FLINT_DRY_RUN=0` in `flint.env`
    (and in the launchd plist if installing it). Until then the daemon
    simulates fills internally and never calls the broker.

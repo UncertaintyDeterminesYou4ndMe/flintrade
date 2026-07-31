@@ -66,11 +66,14 @@ No hard dependency on any one vendor. The default is the local `claude` CLI (no 
 
 | provider | wire | key env |
 |---|---|---|
-| `claude-cli` (default) | Claude Code CLI | — |
+| `claude-cli` (default) | Claude Code CLI — rides your Claude subscription | — |
+| `kimi-cli` | kimi CLI — rides your Kimi Code plan (`kimi login`) | — |
 | `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
-| `openai` / `deepseek` / `moonshot` (Kimi) / `openrouter` | OpenAI chat/completions | `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / … |
+| `openai` / `deepseek` / `moonshot` (Kimi open platform, pay-per-token) / `openrouter` | OpenAI chat/completions | `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / … |
 | `ollama` | local, no key | — |
 | `openai_compatible` | any compatible endpoint (`base_url` in config) | configurable |
+
+Subscription plans (Claude Code, Kimi Code) are wired through their own CLIs in headless mode — the CLI owns auth and plan billing, flintrade just runs it as a subprocess. Note `kimi-cli` (subscription) and `moonshot` (open-platform API key) are different providers on purpose.
 
 ```bash
 .venv/bin/python -m agent.llm check   # verify resolution + keys, no cost

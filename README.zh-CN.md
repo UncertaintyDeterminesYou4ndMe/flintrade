@@ -65,11 +65,14 @@ git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flint
 
 | provider | 协议 | key 环境变量 |
 |---|---|---|
-| `claude-cli`（默认） | Claude Code CLI | 免 key |
+| `claude-cli`（默认） | Claude Code CLI，吃 Claude 订阅 | 免 key |
+| `kimi-cli` | kimi CLI，吃 Kimi Code 订阅 plan（`kimi login`） | 免 key |
 | `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
-| `openai` / `deepseek` / `moonshot`（Kimi）/ `openrouter` | OpenAI chat/completions | 各家对应 key |
+| `openai` / `deepseek` / `moonshot`（Kimi 开放平台，按量计费）/ `openrouter` | OpenAI chat/completions | 各家对应 key |
 | `ollama` | 本地模型 | 免 key |
 | `openai_compatible` | 任意兼容端（配 `base_url`） | 自定义 |
+
+订阅制（Claude Code、Kimi Code plan）统一走各家 CLI 的无头模式——鉴权和 plan 计费归 CLI 管，flintrade 只做子进程调用。注意 `kimi-cli`（订阅）和 `moonshot`（开放平台 API key）是刻意分开的两个 provider。
 
 ```bash
 .venv/bin/python -m agent.llm check   # 验证解析与 key 就位,零成本
