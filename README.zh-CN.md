@@ -6,7 +6,7 @@
 
 ## 这是什么
 
-flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模拟交易（paper trading）。内部实际上跑着**七个并发 loop，各自是一个线程**：三个信号生产者（技术面/Arena、事件/催化剂、资讯）把交易“意图”（intent）写进一个 SQLite 队列；一个 **executor** 线程消费这个队列，在触碰 broker 之前必须先过一道硬编码的组合风控 gate；一个 **reconciler** 持续与真实成交对账，保证账本可信；一个 **risk monitor** 监控回撤，必要时可以熔断停手；还有一个 **做梦（dreaming）** loop，在休市期间把交易历史蒸馏成记忆。
+flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模拟交易（paper trading）。（命名说明：**flintrade** 是仓库名；这个 agent 自己叫 **Flint**——所以你会看到 `flint.env`、`flint.db`、`FLINT_*` 环境变量和 `com.flint.daemon` 这个 launchd label，这是有意的，不要改名。）内部实际上跑着**七个并发 loop，各自是一个线程**：三个信号生产者（技术面/Arena、事件/催化剂、资讯）把交易“意图”（intent）写进一个 SQLite 队列；一个 **executor** 线程消费这个队列，在触碰 broker 之前必须先过一道硬编码的组合风控 gate；一个 **reconciler** 持续与真实成交对账，保证账本可信；一个 **risk monitor** 监控回撤，必要时可以熔断停手；还有一个 **做梦（dreaming）** loop，在休市期间把交易历史蒸馏成记忆。
 
 核心理念继承自项目最初的 [“Arena”](docs/agent-architecture.md) 设计，且从未松动：**LLM 只提议，确定性代码来处置。** 模型负责推理方向、仓位背后的理由、交易论点，但它从不直接调用 broker，也从不写账本——只有 executor 能做这两件事，而且只有当每一个提议都通过了一道纯 Python（而非 prompt）实现的风控 gate 之后才行。
 

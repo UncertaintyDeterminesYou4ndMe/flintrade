@@ -19,6 +19,10 @@ is verified end-to-end and prints the numbered next steps for the user.
 
 ## What this system is (30 seconds)
 
+**Naming**: the repo/distribution is **flintrade**; the agent's internal
+name is **Flint**. Expect `flint.env`, `flint.db`, `FLINT_*` env vars, and
+the launchd label `com.flint.daemon` — that's intentional, don't rename.
+
 A single Python process (`agent/daemon.py`) runs seven loops as threads:
 three LLM signal producers (technical / news-event / news collector) submit
 trade *intents* into SQLite (`flint.db`); one **executor** consumes them
@@ -56,9 +60,9 @@ set -a; source flint.env; set +a
 .venv/bin/python -m agent.daemon --once
 
 # persistent daemon under launchd (auto-restart, fd limits, watchdog)
-cp launchd/com.flint.daemon.plist.example ~/Library/LaunchAgents/com.flint.daemon.plist.example
-$EDITOR ~/Library/LaunchAgents/com.flint.daemon.plist.example   # fix paths + credentials
-launchctl load ~/Library/LaunchAgents/com.flint.daemon.plist.example
+cp launchd/com.flint.daemon.plist.example ~/Library/LaunchAgents/com.flint.daemon.plist
+$EDITOR ~/Library/LaunchAgents/com.flint.daemon.plist   # fix paths + credentials
+launchctl load ~/Library/LaunchAgents/com.flint.daemon.plist
 
 # observe
 python3 dashboard/server.py            # http://localhost:8383
