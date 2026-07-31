@@ -1,12 +1,12 @@
 #!/bin/bash
-# Flint data collector — fetches all market data before calling Claude
+# Flintrade data collector — fetches all market data before calling Claude
 # Outputs a JSON blob to stdout that becomes the USER_PROMPT
 # Zero LLM cost — pure bash + longbridge CLI + python indicators
 
 set -euo pipefail
 
-FLINT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATE_FILE="$FLINT_DIR/state.json"
+FLINTRADE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STATE_FILE="$FLINTRADE_DIR/state.json"
 
 # longbridge 包装:撞 429/限流就退避重试(最多3次),否则回显 stdout。
 # 与 agent/lb.py 同思路,覆盖 collect.sh 这个 bash 重型调用方。
@@ -78,7 +78,7 @@ FIRST=true
 for SYM in $KLINE_SYMBOLS; do
   KLINE=$(lb kline "$SYM" --period 1h --count 50 --format json 2>/dev/null || echo '[]')
   if [ "$KLINE" != "[]" ] && [ -n "$KLINE" ]; then
-    IND=$(echo "$KLINE" | python3 "$FLINT_DIR/scripts/indicators.py" --symbol "$SYM" 2>/dev/null || echo '{"symbol":"'$SYM'","error":"calc failed"}')
+    IND=$(echo "$KLINE" | python3 "$FLINTRADE_DIR/scripts/indicators.py" --symbol "$SYM" 2>/dev/null || echo '{"symbol":"'$SYM'","error":"calc failed"}')
     if [ "$FIRST" = true ]; then
       FIRST=false
     else
@@ -137,7 +137,7 @@ pl_ratio = avg_win / avg_loss if avg_loss > 0 else 0
 # Invocation count from dispatch log
 invocation_count = 0
 try:
-    with open('$FLINT_DIR/logs/dispatch.log') as f:
+    with open('$FLINTRADE_DIR/logs/dispatch.log') as f:
         invocation_count = sum(1 for line in f if 'mode=TRADE' in line or 'mode=PLAN' in line)
 except:
     pass

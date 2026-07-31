@@ -28,7 +28,7 @@ from agent import session as sess
 class Executor:
     def __init__(self, broker: Broker | None = None):
         self.db = DB(role="executor")
-        self.broker = broker or Broker()  # 默认 dry-run(env FLINT_DRY_RUN 控制)
+        self.broker = broker or Broker()  # 默认 dry-run(env FLINTRADE_DRY_RUN 控制)
         self.commission = load_trading()["execution"]["commission_per_share"]
 
     # ── 组合快照 ──────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ class Executor:
         session = sess.current_session()
         orth = sess.outside_rth_for(session)
         price = intent.get("entry_hint")
-        coid = f"flint-{intent['id']}"
+        coid = f"flintrade-{intent['id']}"
 
         # 决定 broker 方向与本地 action
         if is_exit:

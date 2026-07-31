@@ -1,4 +1,4 @@
-# Flint 交易标的与执行配置(非风控参数)。
+# Flintrade 交易标的与执行配置(非风控参数)。
 
 [universe]
 symbols = ["AAPL.US","MSFT.US","GOOGL.US","AMZN.US","NVDA.US","META.US","TSLA.US",

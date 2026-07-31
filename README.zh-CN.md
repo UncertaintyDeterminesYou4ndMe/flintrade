@@ -6,7 +6,7 @@
 
 ## 这是什么
 
-flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模拟交易（paper trading）。（命名说明：**flintrade** 是仓库名；这个 agent 自己叫 **Flint**——所以你会看到 `flint.env`、`flint.db`、`FLINT_*` 环境变量和 `com.flint.daemon` 这个 launchd label，这是有意的，不要改名。）内部实际上跑着**七个并发 loop，各自是一个线程**：三个信号生产者（技术面/Arena、事件/催化剂、资讯）把交易“意图”（intent）写进一个 SQLite 队列；一个 **executor** 线程消费这个队列，在触碰 broker 之前必须先过一道硬编码的组合风控 gate；一个 **reconciler** 持续与真实成交对账，保证账本可信；一个 **risk monitor** 监控回撤，必要时可以熔断停手；还有一个 **做梦（dreaming）** loop，在休市期间把交易历史蒸馏成记忆。
+flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模拟交易（paper trading）。内部实际上跑着**七个并发 loop，各自是一个线程**：三个信号生产者（技术面/Arena、事件/催化剂、资讯）把交易“意图”（intent）写进一个 SQLite 队列；一个 **executor** 线程消费这个队列，在触碰 broker 之前必须先过一道硬编码的组合风控 gate；一个 **reconciler** 持续与真实成交对账，保证账本可信；一个 **risk monitor** 监控回撤，必要时可以熔断停手；还有一个 **做梦（dreaming）** loop，在休市期间把交易历史蒸馏成记忆。
 
 核心理念继承自项目最初的 [“Arena”](docs/agent-architecture.md) 设计，且从未松动：**LLM 只提议，确定性代码来处置。** 模型负责推理方向、仓位背后的理由、交易论点，但它从不直接调用 broker，也从不写账本——只有 executor 能做这两件事，而且只有当每一个提议都通过了一道纯 Python（而非 prompt）实现的风控 gate 之后才行。
 
@@ -25,7 +25,7 @@ flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模
        │ risk_monitor │◀── 部分成交/止损等)                 │ longbridge
        │ 熔断器        │                                    ▼
        └──────┬────────┘                          ┌──────────────┐
-              │ FLATTEN intent      ┌───────────┐  │  flint.db    │  单一真相
+              │ FLATTEN intent      ┌───────────┐  │  flintrade.db    │  单一真相
               └────────────────────▶│reconciler │─▶└──────────────┘
                                     └───────────┘
        supervisor: launchd KeepAlive + 心跳看门狗守护所有 loop
@@ -51,7 +51,7 @@ flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模
 git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flintrade && bash scripts/bootstrap.sh
 ```
 
-就这一条。在一台全新的 Mac 上，`bootstrap.sh` 会建好 venv、装 `longbridge` CLI（Homebrew）、初始化数据库、检查 LLM provider，并跑一次完整的干跑冒烟测试（七个 loop 全过，不下单、不花 token、不需要任何凭据）。脚本幂等可重跑，结束时会按顺序打印接下来要做的事：申请免费的[模拟盘凭据](https://open.longbridge.com)、选 LLM、观察干跑，最后再把 `FLINT_DRY_RUN` 切成 `0`。
+就这一条。在一台全新的 Mac 上，`bootstrap.sh` 会建好 venv、装 `longbridge` CLI（Homebrew）、初始化数据库、检查 LLM provider，并跑一次完整的干跑冒烟测试（七个 loop 全过，不下单、不花 token、不需要任何凭据）。脚本幂等可重跑，结束时会按顺序打印接下来要做的事：申请免费的[模拟盘凭据](https://open.longbridge.com)、选 LLM、观察干跑，最后再把 `FLINTRADE_DRY_RUN` 切成 `0`。
 
 **用 AI 编程助手？** 把这句话粘给 Claude Code / 任意 coding agent：
 
@@ -82,9 +82,9 @@ git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flint
 
 两个档位：`trader`（交易决策，用前沿模型）、`flash`（做梦/复盘，用你信得过的最便宜的）。一个刻意的设计决定：**失败不做跨模型自动 fallback**——配置的模型重试后仍失败，agent 选择 WAIT，而不是换一颗脑子继续交易。
 
-`flint.env.example` 里默认就是 `FLINT_DRY_RUN=1`——daemon 会跑完整的决策流程并在内部模拟成交，从不真正调用 broker。只有在你看它跑过、确认没问题之后，才把它切成 `0`。
+`flintrade.env.example` 里默认就是 `FLINTRADE_DRY_RUN=1`——daemon 会跑完整的决策流程并在内部模拟成交，从不真正调用 broker。只有在你看它跑过、确认没问题之后，才把它切成 `0`。
 
-如果要长期部署，可参考 `launchd/com.flint.daemon.plist.example` 作为模板，在 launchd（macOS）下运行 daemon 并自动重启。
+如果要长期部署，可参考 `launchd/com.flintrade.daemon.plist.example` 作为模板，在 launchd（macOS）下运行 daemon 并自动重启。
 
 另外两个操作性视图：
 
@@ -106,7 +106,7 @@ python3 dashboard/server.py                # web 仪表盘, http://localhost:838
 
 ## 安全与免责声明
 
-flintrade 从设计上就只做模拟交易（paper trading），示例配置里干跑（`FLINT_DRY_RUN=1`）是默认值——除非你主动把开关切换过去，否则没有任何订单会到达 broker；即便切换之后，对接的也是模拟盘账户，而不是真实资金。这是一个教育与研究性质的项目，探索“LLM 只提议、代码来处置”这种受约束架构能走多远，而不是一个交易产品。
+flintrade 从设计上就只做模拟交易（paper trading），示例配置里干跑（`FLINTRADE_DRY_RUN=1`）是默认值——除非你主动把开关切换过去，否则没有任何订单会到达 broker；即便切换之后，对接的也是模拟盘账户，而不是真实资金。这是一个教育与研究性质的项目，探索“LLM 只提议、代码来处置”这种受约束架构能走多远，而不是一个交易产品。
 
 **这不构成任何投资建议。** 本项目中的任何内容都不是买入、卖出或持有某项证券的建议。使用本项目产生的一切后果由使用者自行承担。
 

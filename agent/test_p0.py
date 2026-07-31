@@ -1,5 +1,5 @@
 """P0 修复冒烟测试 —— 临时 db + 桩 broker,零真实副作用。
-跑法: FLINT_DRY_RUN=1 FLINT_DB=/tmp/flint_p0_test.db python3 -m agent.test_p0
+跑法: FLINTRADE_DRY_RUN=1 FLINTRADE_DB=/tmp/flintrade_p0_test.db python3 -m agent.test_p0
 
 覆盖 5 个 P0 修复:
   1. broker.positions() 返回 None(API 失败)时,drift 检测跳过,不落任何信号。
@@ -17,12 +17,12 @@ import sys
 import tempfile
 
 # 强制临时 db + dry-run(在 import db 前设好 env)
-os.environ.setdefault("FLINT_DB", os.path.join(tempfile.gettempdir(), "flint_p0_test.db"))
-os.environ["FLINT_DRY_RUN"] = "1"
-if os.path.exists(os.environ["FLINT_DB"]):
-    os.remove(os.environ["FLINT_DB"])
+os.environ.setdefault("FLINTRADE_DB", os.path.join(tempfile.gettempdir(), "flintrade_p0_test.db"))
+os.environ["FLINTRADE_DRY_RUN"] = "1"
+if os.path.exists(os.environ["FLINTRADE_DB"]):
+    os.remove(os.environ["FLINTRADE_DB"])
 for ext in ("-wal", "-shm"):
-    p = os.environ["FLINT_DB"] + ext
+    p = os.environ["FLINTRADE_DB"] + ext
     if os.path.exists(p):
         os.remove(p)
 
@@ -128,9 +128,9 @@ pos_id = boot.open_position(symbol="TSLA.US", side="long", qty=5, entry_price=20
 boot.append_trade(symbol="TSLA.US", action="BUY", qty=5, fill_price=200.0,
                   commission=0.1, source="technical", broker_order_id="DUPBOID-1",
                   position_id=pos_id, reason="original open")
-order_id = boot.create_order(client_order_id="flint-idem-1", symbol="TSLA.US", side="BUY",
+order_id = boot.create_order(client_order_id="flintrade-idem-1", symbol="TSLA.US", side="BUY",
                              qty=5, price=200.0, outside_rth="RTH_ONLY")
-boot.update_order("flint-idem-1", broker_order_id="DUPBOID-1")
+boot.update_order("flintrade-idem-1", broker_order_id="DUPBOID-1")
 boot.close()
 
 trades_before = DB(role="reader").conn.execute("SELECT COUNT(*) c FROM trades").fetchone()["c"]
@@ -139,7 +139,7 @@ positions_before = DB(role="reader").conn.execute("SELECT COUNT(*) c FROM positi
 log4 = recon3.run_once()
 
 order_row = DB(role="reader").conn.execute(
-    "SELECT status FROM orders WHERE client_order_id='flint-idem-1'"
+    "SELECT status FROM orders WHERE client_order_id='flintrade-idem-1'"
 ).fetchone()
 trades_after = DB(role="reader").conn.execute("SELECT COUNT(*) c FROM trades").fetchone()["c"]
 positions_after = DB(role="reader").conn.execute("SELECT COUNT(*) c FROM positions").fetchone()["c"]
@@ -161,9 +161,9 @@ pos_id2 = boot.open_position(symbol="AAPL.US", side="long", qty=10, entry_price=
                              stop=95.0, target=None, source="technical")
 intent_id = prod.submit_intent(source="technical", symbol="AAPL.US", side="close",
                                entry_hint=105.0, reason="THESIS-XYZ")
-boot.create_order(client_order_id="flint-close-1", symbol="AAPL.US", side="SELL",
+boot.create_order(client_order_id="flintrade-close-1", symbol="AAPL.US", side="SELL",
                   qty=10, price=105.0, outside_rth="RTH_ONLY", intent_id=intent_id)
-boot.update_order("flint-close-1", broker_order_id="CLOSEBOID-1")
+boot.update_order("flintrade-close-1", broker_order_id="CLOSEBOID-1")
 boot.close()
 
 log3 = recon4.run_once()
@@ -176,7 +176,7 @@ check("reconciled close: reason 取自原始 intent",
 print("=== FIX 5a: 在途重复下单 → executor 拒绝 ===")
 wipe()
 boot = DB(role="migrate")
-boot.create_order(client_order_id="flint-inflight-1", symbol="NVDA.US", side="BUY",
+boot.create_order(client_order_id="flintrade-inflight-1", symbol="NVDA.US", side="BUY",
                   qty=19, price=205.0, outside_rth="RTH_ONLY")
 boot.close()
 

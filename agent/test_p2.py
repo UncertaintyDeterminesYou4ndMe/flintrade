@@ -1,7 +1,7 @@
 """Phase 2 冒烟测试 —— attribution + postmortem(cognitive iteration)层。
 临时 db,canned LLM(不花真钱),零真实副作用。
 
-跑法: FLINT_DRY_RUN=1 python3 -m agent.test_p2
+跑法: FLINTRADE_DRY_RUN=1 python3 -m agent.test_p2
 """
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 
 # 强制临时 db + dry-run(在 import db 前设好 env)
-os.environ.setdefault("FLINT_DB", os.path.join(tempfile.gettempdir(), "flint_p2_test.db"))
-os.environ["FLINT_DRY_RUN"] = "1"
-os.environ.setdefault("FLINT_LLM_DRY", "1")
-if os.path.exists(os.environ["FLINT_DB"]):
-    os.remove(os.environ["FLINT_DB"])
+os.environ.setdefault("FLINTRADE_DB", os.path.join(tempfile.gettempdir(), "flintrade_p2_test.db"))
+os.environ["FLINTRADE_DRY_RUN"] = "1"
+os.environ.setdefault("FLINTRADE_LLM_DRY", "1")
+if os.path.exists(os.environ["FLINTRADE_DB"]):
+    os.remove(os.environ["FLINTRADE_DB"])
 
 from agent.db import DB, init_db, now           # noqa: E402
 from agent import settle                        # noqa: E402
@@ -38,12 +38,12 @@ print("=== init_db migration ===")
 
 init_db()
 init_db()  # 第二次调用不应抛异常
-conn = sqlite3.connect(os.environ["FLINT_DB"])
+conn = sqlite3.connect(os.environ["FLINTRADE_DB"])
 cols = [c[1] for c in conn.execute("PRAGMA table_info(trades)").fetchall()]
 check("attribution column present after init_db (fresh db)", "attribution" in cols)
 conn.close()
 
-migrate_path = os.path.join(tempfile.gettempdir(), "flint_p2_migrate.db")
+migrate_path = os.path.join(tempfile.gettempdir(), "flintrade_p2_migrate.db")
 if os.path.exists(migrate_path):
     os.remove(migrate_path)
 mconn = sqlite3.connect(migrate_path)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Flint Trading Bot — Arena-style architecture
+# Flintrade Trading Bot — Arena-style architecture
 # bash collects data → Claude decides → bash executes
 #
 # Flow: collect.sh → claude -p (no tools) → parse decision → longbridge buy/sell
@@ -11,21 +11,21 @@
 
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
 
-FLINT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLINTRADE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Credentials — single source: flint.env (gitignored, never committed).
+# Credentials — single source: flintrade.env (gitignored, never committed).
 # (Same source the daemon path uses via scripts/agentctl.sh.)
-if [ -f "$FLINT_DIR/flint.env" ]; then
+if [ -f "$FLINTRADE_DIR/flintrade.env" ]; then
   set -a
-  source "$FLINT_DIR/flint.env"
+  source "$FLINTRADE_DIR/flintrade.env"
   set +a
 else
-  echo "FATAL: missing $FLINT_DIR/flint.env (credential source). Copy flint.env.example and fill it in." >&2
+  echo "FATAL: missing $FLINTRADE_DIR/flintrade.env (credential source). Copy flintrade.env.example and fill it in." >&2
   exit 1
 fi
 
-STATE_FILE="$FLINT_DIR/state.json"
-LOG_DIR="$FLINT_DIR/logs"
+STATE_FILE="$FLINTRADE_DIR/state.json"
+LOG_DIR="$FLINTRADE_DIR/logs"
 mkdir -p "$LOG_DIR"
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -154,11 +154,11 @@ case "$MARKET_STATUS" in
   *)                     OUTSIDE_RTH="RTH_ONLY" ;;
 esac
 export MARKET_STATUS OUTSIDE_RTH
-DATA=$("$FLINT_DIR/scripts/collect.sh" 2>/dev/null || echo '{"error":"collect failed"}')
+DATA=$("$FLINTRADE_DIR/scripts/collect.sh" 2>/dev/null || echo '{"error":"collect failed"}')
 
 # Step 3: Claude — full agent with Read, Write, Bash(longbridge)
 DECISION=$(claude -p \
-  --system-prompt-file "$FLINT_DIR/prompt.md" \
+  --system-prompt-file "$FLINTRADE_DIR/prompt.md" \
   --allowedTools "Read Write Bash(longbridge *) Bash(date *) Bash(TZ=*)" \
   --max-budget-usd 3.00 \
   "$DATA" 2>/dev/null || echo '{"action":"ERROR","chain_of_thought":"claude call failed"}')

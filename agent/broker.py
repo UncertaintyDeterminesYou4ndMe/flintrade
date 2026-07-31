@@ -7,7 +7,7 @@ Two modes:
   - LIVE: shells out to the real `longbridge` CLI (never shell=True).
   - DRY-RUN: simulates fills without touching the CLI, so the rest of the
     pipeline can be built and tested with zero side effects (no real paper
-    orders placed). DRY-RUN is the DEFAULT when FLINT_DRY_RUN is unset, for
+    orders placed). DRY-RUN is the DEFAULT when FLINTRADE_DRY_RUN is unset, for
     safety.
 
 The longbridge CLI reads its credentials from LONGBRIDGE_* env vars set by the
@@ -41,12 +41,12 @@ _TRUTHY = {"1", "true", "yes"}
 
 
 def _env_dry_run_default() -> bool:
-    """Resolve the default dry_run from the FLINT_DRY_RUN env var.
+    """Resolve the default dry_run from the FLINTRADE_DRY_RUN env var.
 
     If the env var is unset, default to True (safe — never place real orders
     unless explicitly opted into live mode).
     """
-    raw = os.environ.get("FLINT_DRY_RUN")
+    raw = os.environ.get("FLINTRADE_DRY_RUN")
     if raw is None:
         return True
     return raw.strip().lower() in _TRUTHY
@@ -55,7 +55,7 @@ def _env_dry_run_default() -> bool:
 class Broker:
     """Place and query orders via the longbridge CLI, with a dry-run mode."""
 
-    # longbridge CLI 必需的凭据环境变量(由 flint.env 经 agentctl.sh 注入)。
+    # longbridge CLI 必需的凭据环境变量(由 flintrade.env 经 agentctl.sh 注入)。
     _REQUIRED_CREDS = (
         "LONGBRIDGE_APP_KEY",
         "LONGBRIDGE_APP_SECRET",
@@ -72,8 +72,8 @@ class Broker:
             if missing:
                 raise RuntimeError(
                     "LIVE 模式缺少 longbridge 凭据环境变量: "
-                    f"{missing}。请经 scripts/agentctl.sh 启动(它会 source flint.env),"
-                    "或先手动 source flint.env。"
+                    f"{missing}。请经 scripts/agentctl.sh 启动(它会 source flintrade.env),"
+                    "或先手动 source flintrade.env。"
                 )
 
     # ------------------------------------------------------------------ #

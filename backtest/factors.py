@@ -1,5 +1,5 @@
 """
-Cross-sectional factor for ranking the flint 12-symbol universe.
+Cross-sectional factor for ranking the flintrade 12-symbol universe.
 
 Final form chosen via cross-period validation:
 - Discovered (and overfit) on 2026-02..04 hourly bars (50-iter autoresearch).

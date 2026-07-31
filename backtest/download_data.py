@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 DEFAULT_PERIOD = "5m"
 DEFAULT_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
-# Same symbols as Flint
+# Same symbols as Flintrade
 TRADE_SYMBOLS = [
     "AAPL.US", "MSFT.US", "GOOGL.US", "AMZN.US", "NVDA.US",
     "META.US", "TSLA.US", "GLD.US", "UGL.US", "SLV.US", "AGQ.US", "USO.US",

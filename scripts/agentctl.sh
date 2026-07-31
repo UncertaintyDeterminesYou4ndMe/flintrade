@@ -1,21 +1,21 @@
 #!/bin/bash
-# Flint agent launcher —— 加载 flint.env 凭据后运行指定模块。
+# Flintrade agent launcher —— 加载 flintrade.env 凭据后运行指定模块。
 # 用法:
 #   ./scripts/agentctl.sh executor --once
 #   ./scripts/agentctl.sh producers.loop_technical --once
 #   ./scripts/agentctl.sh user_cli status
 #   ./scripts/agentctl.sh reflect --force
-# 凭据单一来源 = flint.env(gitignore)。手动跑任何进程都不用再 export。
+# 凭据单一来源 = flintrade.env(gitignore)。手动跑任何进程都不用再 export。
 
-FLINT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FLINTRADE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:$PATH"
 
-if [ ! -f "$FLINT_DIR/flint.env" ]; then
-  echo "缺 flint.env(凭据来源)。" >&2
+if [ ! -f "$FLINTRADE_DIR/flintrade.env" ]; then
+  echo "缺 flintrade.env(凭据来源)。" >&2
   exit 1
 fi
 set -a
-source "$FLINT_DIR/flint.env"
+source "$FLINTRADE_DIR/flintrade.env"
 set +a
 
 if [ -z "$1" ]; then
@@ -25,8 +25,8 @@ if [ -z "$1" ]; then
 fi
 
 MODULE="$1"; shift
-cd "$FLINT_DIR" || exit 1
+cd "$FLINTRADE_DIR" || exit 1
 # 优先用 .venv(内含 lancedb/fastembed,语义记忆才活);无则回退系统 python(记忆降级)
-PY="$FLINT_DIR/.venv/bin/python"
+PY="$FLINTRADE_DIR/.venv/bin/python"
 [ -x "$PY" ] || PY="python3"
 exec "$PY" -m "agent.$MODULE" "$@"

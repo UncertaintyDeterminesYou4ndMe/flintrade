@@ -1,5 +1,5 @@
 """Phase 1 冒烟测试 —— 临时 db + dry-run broker,零真实副作用。
-跑法: FLINT_DRY_RUN=1 FLINT_DB=/tmp/flint_test.db python3 -m agent.test_phase1
+跑法: FLINTRADE_DRY_RUN=1 FLINTRADE_DB=/tmp/flintrade_test.db python3 -m agent.test_phase1
 """
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 
 # 强制临时 db + dry-run(在 import db 前设好 env)
-os.environ.setdefault("FLINT_DB", os.path.join(tempfile.gettempdir(), "flint_test.db"))
-os.environ["FLINT_DRY_RUN"] = "1"
-if os.path.exists(os.environ["FLINT_DB"]):
-    os.remove(os.environ["FLINT_DB"])
+os.environ.setdefault("FLINTRADE_DB", os.path.join(tempfile.gettempdir(), "flintrade_test.db"))
+os.environ["FLINTRADE_DRY_RUN"] = "1"
+if os.path.exists(os.environ["FLINTRADE_DB"]):
+    os.remove(os.environ["FLINTRADE_DB"])
 
 from agent.db import DB, init_db, now              # noqa: E402
 from agent.risk_gate import RiskGate                # noqa: E402

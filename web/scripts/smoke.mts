@@ -35,7 +35,7 @@ import type {
   Config,
 } from '../src/lib/types.ts';
 
-const BASE = process.env.FLINT_API_BASE ?? 'http://localhost:8383';
+const BASE = process.env.FLINTRADE_API_BASE ?? 'http://localhost:8383';
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);

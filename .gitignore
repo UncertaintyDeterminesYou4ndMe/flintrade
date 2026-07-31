@@ -5,21 +5,21 @@ __pycache__/
 autoresearch-results.tsv
 
 # Credentials — NEVER commit. Single source of truth for LONGBRIDGE_* secrets.
-flint.env
-flint.env.local
+flintrade.env
+flintrade.env.local
 
-# Flint agent SQLite (runtime state, not versioned)
-flint.db
-flint.db-wal
-flint.db-shm
+# Flintrade agent SQLite (runtime state, not versioned)
+flintrade.db
+flintrade.db-wal
+flintrade.db-shm
 
 # venv (memory subsystem deps: lancedb, fastembed)
 .venv/
-flint_lance/
+flintrade_lance/
 .daemon.lock
 
-# launchd plist contains real credentials — template is com.flint.daemon.plist.example
-launchd/com.flint.daemon.plist
+# launchd plist contains real credentials — template is com.flintrade.daemon.plist.example
+launchd/com.flintrade.daemon.plist
 
 # web SPA build artifacts
 web/node_modules/

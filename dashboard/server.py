@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Flint Dashboard — multi-process daemon monitor (reads flint.db).
+Flintrade Dashboard — multi-process daemon monitor (reads flintrade.db).
 
 The daemon (executor/reconciler/risk_monitor + producer loops) is now the
-single source of truth, backed by SQLite `flint.db`. This dashboard is a pure
+single source of truth, backed by SQLite `flintrade.db`. This dashboard is a pure
 READ-ONLY view over that db (role="reader" — never writes, never places orders).
 
 Tabs:
@@ -14,7 +14,7 @@ Tabs:
     MEMORY     — reflect.recall(): active lessons + non-expired plans + agg win-rate matrix
     LOGS       — legacy per-cycle log files (logs/*.json), kept for history
 
-Backward tolerance: if flint.db is missing or a table is empty, each panel
+Backward tolerance: if flintrade.db is missing or a table is empty, each panel
 renders "no data" rather than crashing.
 
 Usage:
@@ -30,9 +30,9 @@ import urllib.parse
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-FLINT_DIR = Path(__file__).resolve().parent.parent
-LOGS_DIR = FLINT_DIR / "logs"
-WEB_DIST_DIR = FLINT_DIR / "web" / "dist"
+FLINTRADE_DIR = Path(__file__).resolve().parent.parent
+LOGS_DIR = FLINTRADE_DIR / "logs"
+WEB_DIST_DIR = FLINTRADE_DIR / "web" / "dist"
 PORT = 8383
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -54,8 +54,8 @@ def _spa_dist_available():
     return (WEB_DIST_DIR / "index.html").is_file()
 
 # Make the `agent` package importable when run as `python3 dashboard/server.py`.
-if str(FLINT_DIR) not in sys.path:
-    sys.path.insert(0, str(FLINT_DIR))
+if str(FLINTRADE_DIR) not in sys.path:
+    sys.path.insert(0, str(FLINTRADE_DIR))
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -435,14 +435,14 @@ function showTab(tabName) {
     document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
     document.getElementById('tab-' + tabName).classList.remove('hidden');
     document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
-    try { localStorage.setItem('flint-tab', tabName); } catch (e) {}
+    try { localStorage.setItem('flintrade-tab', tabName); } catch (e) {}
 }
 function toggleTheme() {
     var root = document.documentElement;
     var current = root.getAttribute('data-theme');
     var next = (current === 'dark') ? 'light' : (current === 'light') ? '' : 'dark';
-    if (next) { root.setAttribute('data-theme', next); localStorage.setItem('flint-theme', next); }
-    else { root.removeAttribute('data-theme'); localStorage.removeItem('flint-theme'); }
+    if (next) { root.setAttribute('data-theme', next); localStorage.setItem('flintrade-theme', next); }
+    else { root.removeAttribute('data-theme'); localStorage.removeItem('flintrade-theme'); }
     updateThemeBtn();
 }
 function updateThemeBtn() {
@@ -453,12 +453,12 @@ function updateThemeBtn() {
     else btn.textContent = 'AUTO';
 }
 (function() {
-    var saved = localStorage.getItem('flint-theme');
+    var saved = localStorage.getItem('flintrade-theme');
     if (saved) document.documentElement.setAttribute('data-theme', saved);
 })();
 window.addEventListener('DOMContentLoaded', function() {
     updateThemeBtn();
-    var t = localStorage.getItem('flint-tab');
+    var t = localStorage.getItem('flintrade-tab');
     if (t && document.getElementById('tab-' + t)) showTab(t);
 });
 """
@@ -730,7 +730,7 @@ def render_logs(logs):
             <td style="color:var(--fg-bright);">{_escape(l.get('symbol') or '')}</td>
             <td style="color:var(--fg3); max-width:480px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{_escape(str(reason)[:160])}</td>
         </tr>"""
-    return f"""<div class="update-info">Legacy per-cycle logs (history only; live state is in flint.db)</div>
+    return f"""<div class="update-info">Legacy per-cycle logs (history only; live state is in flintrade.db)</div>
     <table>
         <tr><th>File</th><th>Action</th><th>Symbol</th><th>Reasoning</th></tr>
         {rows}
@@ -775,7 +775,7 @@ def render_html():
 
     db_warn = ""
     if not db_ok:
-        db_warn = ('<div class="halt-banner" style="margin:12px 20px;">flint.db not found — '
+        db_warn = ('<div class="halt-banner" style="margin:12px 20px;">flintrade.db not found — '
                    'showing empty panels. Start the daemon to populate it.</div>')
 
     positions_html = render_positions(positions, risk)
@@ -790,16 +790,16 @@ def render_html():
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="refresh" content="30">
-<title>Flint — Daemon Monitor</title>
+<title>Flintrade — Daemon Monitor</title>
 <style>{CSS}</style>
 <script>{JS}</script>
 </head>
 <body>
 
 <div class="topnav">
-    <div class="brand"><span>FLINT</span> DAEMON</div>
+    <div class="brand"><span>FLINTRADE</span> DAEMON</div>
     <div style="display:flex; align-items:center; gap:12px;">
-        <span style="color:var(--fg3); font-size:11px;">Paper Trading | {now_bj} / {now_et} | refresh 30s | flint.db</span>
+        <span style="color:var(--fg3); font-size:11px;">Paper Trading | {now_bj} / {now_et} | refresh 30s | flintrade.db</span>
         <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">AUTO</button>
     </div>
 </div>
@@ -859,7 +859,7 @@ def render_html():
 </body></html>"""
 
 
-class FlintHandler(http.server.BaseHTTPRequestHandler):
+class FlintradeHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -953,8 +953,8 @@ class FlintHandler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print(f"Flint Daemon Monitor at http://localhost:{PORT}  (reading {FLINT_DIR / 'flint.db'})")
-    server = http.server.HTTPServer(("", PORT), FlintHandler)
+    print(f"Flintrade Daemon Monitor at http://localhost:{PORT}  (reading {FLINTRADE_DIR / 'flintrade.db'})")
+    server = http.server.HTTPServer(("", PORT), FlintradeHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

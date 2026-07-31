@@ -1,6 +1,6 @@
 # memory_prior — agent realized-outcome prior for the ML factor/gate
 
-`memory_prior.py` bridges Flint's **Dreaming** layer (the agent's own realized
+`memory_prior.py` bridges Flintrade's **Dreaming** layer (the agent's own realized
 trade outcomes, rolled up by `agent/reflect.py::aggregate()` into the `agg`
 table) into the offline backtest ML framework (`features.py` / `model.py` /
 `train.py`). It is the "two learning loops converge" piece: the factor model
@@ -19,7 +19,7 @@ It is pure stdlib + sqlite3 (no torch), read-only, and never trades.
 | `as_feature_row(symbol, session, rsi_bucket)` | `{realized_win_rate, realized_pl_ratio, sample_size, has_prior}` |
 | `export_json(path, db_path=None)` | dumps the whole prior to JSON for offline (no-db) training |
 
-Default db path = repo `flint.db`, overridable via `FLINT_DB` env. Reuses
+Default db path = repo `flintrade.db`, overridable via `FLINTRADE_DB` env. Reuses
 `agent.db.DB(role="reader")` if importable, else opens sqlite directly — so it
 works even without the `agent` package on the path.
 
@@ -35,7 +35,7 @@ coarsest and returns the FIRST level whose pooled `trips >= min_trips`:
 symbol+session+rsi  →  symbol+session  →  symbol  →  global  →  default (0.5)
 ```
 
-With the current `flint.db` (32 migrated trades, all `rsi_bucket='na'`, max 3
+With the current `flintrade.db` (32 migrated trades, all `rsi_bucket='na'`, max 3
 trips per bucket), every fine-grained bucket is too thin, so `win_rate_prior`
 backs off all the way to the global pool (16 closed trips, 0.5 win-rate). That
 is the correct, conservative behavior: **never trust a < min_trips bucket.**
@@ -98,7 +98,7 @@ veto. As above, gate this behind a flag so the trained baseline is reproducible.
 ### Offline (no live db) path
 
 Run `python3 backtest/ml/memory_prior.py` to write `memory_prior.json`, then in
-training load that file instead of touching `flint.db`:
+training load that file instead of touching `flintrade.db`:
 
 ```python
 prior = json.load(open("backtest/ml/memory_prior.json"))

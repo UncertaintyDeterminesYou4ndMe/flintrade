@@ -1,11 +1,11 @@
 ---
-name: Flint Arena Architecture (Branch Plan)
-description: 未实施的 Flint 重构方案 — 采用 AlphaZero Arena 模式，bash 预采集数据打包成富 prompt，LLM 只做分析决策不调工具，下单回到 bash。省 token、更快、更可控。
+name: Flintrade Arena Architecture (Branch Plan)
+description: 未实施的 Flintrade 重构方案 — 采用 AlphaZero Arena 模式，bash 预采集数据打包成富 prompt，LLM 只做分析决策不调工具，下单回到 bash。省 token、更快、更可控。
 type: project
 ---
-## Arena 模式 vs 当前 Flint
+## Arena 模式 vs 当前 Flintrade
 
-| | Flint 当前 | Arena 模式（未实施） |
+| | Flintrade 当前 | Arena 模式（未实施） |
 |---|---|---|
 | 数据采集 | LLM 自己调 longbridge CLI（多轮工具调用） | bash 预采集 quote/kline/news，打包成 structured prompt |
 | LLM 职责 | 采数据 + 分析 + 决策 + 下单 | **只做分析和决策**（纯文本 in/out） |

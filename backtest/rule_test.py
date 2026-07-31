@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test impact of three new rules on Flint's strategy:
+Test impact of three new rules on Flintrade's strategy:
 1. Volume filter: min volume_ratio to enter
 2. No entry near session close (last N minutes)
 3. Track hold duration per trade

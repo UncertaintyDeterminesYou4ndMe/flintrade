@@ -1,4 +1,4 @@
-"""state.json → flint.db 一次性迁移。幂等:重跑前清空 trades/positions 再导。
+"""state.json → flintrade.db 一次性迁移。幂等:重跑前清空 trades/positions 再导。
 历史成交全部标记 source='technical'(cron 时代只有技术面一个来源)。"""
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import json
 import sys
 from pathlib import Path
 
-from agent.db import DB, FLINT_DIR, init_db, now
+from agent.db import DB, FLINTRADE_DIR, init_db, now
 
-STATE_FILE = FLINT_DIR / "state.json"
+STATE_FILE = FLINTRADE_DIR / "state.json"
 
 
 def migrate():

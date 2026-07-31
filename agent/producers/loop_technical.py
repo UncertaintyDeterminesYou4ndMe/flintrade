@@ -3,7 +3,7 @@
 绝不下单、绝不写持仓 —— 只 submit_intent 投递队列,Executor 负责风控与执行。
 
 与旧 run.sh 的区别:LLM 的 system prompt 换成 technical_intent.md(只产假设,不算量、
-不下单);LLM 无工具权限(纯文本 in/out);持仓真相从 flint.db 注入(不再读过时的
+不下单);LLM 无工具权限(纯文本 in/out);持仓真相从 flintrade.db 注入(不再读过时的
 state.json)。
 """
 from __future__ import annotations
@@ -15,18 +15,18 @@ import subprocess
 import time
 
 from agent.config import load_risk, load_trading
-from agent.db import DB, FLINT_DIR
+from agent.db import DB, FLINTRADE_DIR
 from agent import session as sess
 
-COLLECT = FLINT_DIR / "scripts" / "collect.sh"
-PROMPT = FLINT_DIR / "agent" / "prompts" / "technical_intent.md"
+COLLECT = FLINTRADE_DIR / "scripts" / "collect.sh"
+PROMPT = FLINTRADE_DIR / "agent" / "prompts" / "technical_intent.md"
 
 # LLM action → intent.side
 _SIDE = {"BUY": "long", "SHORT": "short", "CLOSE": "close", "SELL": "close"}
 
 
 def collect_data() -> dict:
-    """跑 collect.sh 拿市场数据,再用 db 的持仓真相覆盖 flint_positions。"""
+    """跑 collect.sh 拿市场数据,再用 db 的持仓真相覆盖 flintrade_positions。"""
     # 把当前时段 + outside_rth 传给 collect.sh(同旧 run.sh),让 payload 的 session 准确。
     s = sess.current_session()
     env = {**os.environ, "MARKET_STATUS": s, "OUTSIDE_RTH": sess.outside_rth_for(s)}
@@ -37,9 +37,9 @@ def collect_data() -> dict:
     except (ValueError, TypeError):
         data = {"error": "collect failed", "stderr": out.stderr[:500]}
     with DB(role="reader") as db:
-        data["flint_positions"] = [dict(p) for p in db.open_positions()]
+        data["flintrade_positions"] = [dict(p) for p in db.open_positions()]
         r = db.get_risk()
-    data["flint_risk"] = {"equity": r["equity"], "open_risk": r["open_risk"],
+    data["flintrade_risk"] = {"equity": r["equity"], "open_risk": r["open_risk"],
                           "halt": bool(r["halt"])} if r else {}
     # 唤醒回忆:先定向时间,再调取做梦合成的 lessons + 未过期 plans。
     # recall() 纯读库、不调 broker,以当前 ET 过滤过期计划。

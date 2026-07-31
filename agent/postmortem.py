@@ -1,5 +1,5 @@
 """
-Flint Agent —— 逐笔平仓复盘(postmortem / "cognitive iteration")层。
+Flintrade Agent —— 逐笔平仓复盘(postmortem / "cognitive iteration")层。
 
 这是 Dreaming 的姊妹层:reflect.py 做的是"跨交易的模式蒸馏"(聚合统计 + 语义
 教训),这里做的是"单笔交易的诚实复盘" —— 每一笔已平仓、可归因为策略的交易,

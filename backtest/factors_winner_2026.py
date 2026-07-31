@@ -1,5 +1,5 @@
 """
-Cross-sectional factor for ranking the flint 12-symbol universe.
+Cross-sectional factor for ranking the flintrade 12-symbol universe.
 
 autoresearch evolves score() to maximize OOS Rank IC vs 1-bar-ahead returns.
 

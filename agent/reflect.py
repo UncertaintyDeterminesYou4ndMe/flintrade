@@ -1,5 +1,5 @@
 """
-Flint Agent —— "Dreaming" / 记忆合成层(reflect)。
+Flintrade Agent —— "Dreaming" / 记忆合成层(reflect)。
 
 这是 agent 的「睡眠」。它在**休市窗口**(session.current_session() == 'Closed')运行,
 把原始交易历史蒸馏成有界、可复用的记忆,再通过 recall() 把记忆带着**时间纵深感**
@@ -33,7 +33,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from agent.db import DB, FLINT_DIR, now
+from agent.db import DB, FLINTRADE_DIR, now
 from agent.session import current_session
 
 ET = ZoneInfo("America/New_York")
@@ -45,7 +45,7 @@ DECAY_FACTOR = 0.9
 ARCHIVE_BELOW = 0.2       # confidence 低于此值 → archived
 DREAM_MODEL = "claude-haiku-4-5"
 DREAM_BUDGET_USD = "0.50"
-DREAM_LOG_DIR = FLINT_DIR / "logs"
+DREAM_LOG_DIR = FLINTRADE_DIR / "logs"
 
 # ── 测试用 seam:置入一个 str(LLM 原始输出)即跳过真实 claude 调用 ──────────
 _CANNED_LLM_RESPONSE: str | None = None

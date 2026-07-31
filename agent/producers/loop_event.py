@@ -17,12 +17,12 @@ import subprocess
 import time
 
 from agent.config import load_risk, load_trading
-from agent.db import DB, FLINT_DIR
+from agent.db import DB, FLINTRADE_DIR
 
 # 复用技术面 loop 的解析/转换,保证 Executor 看到的 intent 形态完全一致。
 from agent.producers.loop_technical import parse_intent, to_intent
 
-PROMPT = FLINT_DIR / "agent" / "prompts" / "event_intent.md"
+PROMPT = FLINTRADE_DIR / "agent" / "prompts" / "event_intent.md"
 
 # 哪些 event.kind 算可交易的舆情催化剂。
 _CATALYST_KINDS = ("news_catalyst", "macro", "earnings", "news")

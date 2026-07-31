@@ -1,5 +1,5 @@
 """
-Verify a factor formula against OOS Rank IC on the flint 12-symbol universe.
+Verify a factor formula against OOS Rank IC on the flintrade 12-symbol universe.
 
 Loads 1h panel data, aligns timestamps across all symbols, splits 70/30
 chronologically, imports `score` from factors.py, computes Spearman rank IC

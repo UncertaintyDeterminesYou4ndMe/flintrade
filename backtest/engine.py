@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flint Backtesting Engine
+Flintrade Backtesting Engine
 
 Replays 5m bars chronologically, computes indicators on rolling windows
 (same logic as indicators.py), simulates entry/exit with commission.
@@ -44,7 +44,7 @@ class StrategyParams:
 
     # Exit
     stop_loss_pct: float = 1.0         # stop loss as % of entry price
-    take_profit_pct: float = 0.0       # 0 = any profit (current Flint rule)
+    take_profit_pct: float = 0.0       # 0 = any profit (current Flintrade rule)
     trailing_stop_pct: float = 0.0     # 0 = disabled
     max_hold_bars: int = 0             # 0 = unlimited
 
@@ -555,7 +555,7 @@ if __name__ == "__main__":
     timeline = build_timeline(data)
     print(f"Timeline: {len(timeline)} bars, {timeline[0][0]} to {timeline[-1][0]}")
 
-    # Run with current Flint parameters
+    # Run with current Flintrade parameters
     params = StrategyParams()
     print(f"\nRunning backtest: {params.label()}")
     result = run_backtest(params, data, timeline)

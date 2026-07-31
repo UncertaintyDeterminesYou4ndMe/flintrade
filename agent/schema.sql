@@ -1,4 +1,4 @@
--- Flint Agent 数据契约 (SQLite, WAL)
+-- Flintrade Agent 数据契约 (SQLite, WAL)
 -- 所有进程共享。约定:生产者只 INSERT intents/signals;
 -- 只有 Executor/Reconciler 写 positions/trades/orders;只有 risk_monitor/Executor 写 risk_state.halt。
 -- 约定由 db.py 的 role guard 在代码层强制(见 db.py)。

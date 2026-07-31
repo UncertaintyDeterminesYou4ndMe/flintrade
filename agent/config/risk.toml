@@ -1,4 +1,4 @@
-# Flint 组合风控引擎配置 —— 保守档(conservative)
+# Flintrade 组合风控引擎配置 —— 保守档(conservative)
 # 取代旧的「一仓制 + $1200 固定本金」。所有数值运行时可改,Executor 热加载。
 # 资金模型:多空 + 现金(不融资)。
 
@@ -33,7 +33,7 @@ allow_short  = true              # 多空 + 现金
 allow_margin = false             # 不融资:gross ≤ 100%
 
 [equity]
-# fixed = Flint 只用分配的 sleeve 本金,reconciler 不随券商真实净值同步;
+# fixed = Flintrade 只用分配的 sleeve 本金,reconciler 不随券商真实净值同步;
 # broker = equity 同步券商 net_assets。真实账户 $126K,这里只分配 $1万 给 bot。
 mode       = "fixed"
 sleeve_usd = 10000

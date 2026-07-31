@@ -1,5 +1,5 @@
 """
-Flint Agent 数据访问层。SQLite + WAL,零外部依赖(stdlib only)。
+Flintrade Agent 数据访问层。SQLite + WAL,零外部依赖(stdlib only)。
 
 核心不变量 —— 单一写者(role guard):
   生产者(technical/event/user/news)只能 submit_intent / add_signal / add_event。
@@ -25,8 +25,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-FLINT_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = Path(os.environ.get("FLINT_DB", FLINT_DIR / "flint.db"))
+FLINTRADE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = Path(os.environ.get("FLINTRADE_DB", FLINTRADE_DIR / "flintrade.db"))
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 # 角色 → 可写的受保护表。未列出的写操作会被 _require 拒绝。

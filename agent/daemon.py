@@ -1,5 +1,5 @@
 """
-Flint 单进程总管 —— 把所有 loop 合到一个程序里。
+Flintrade 单进程总管 —— 把所有 loop 合到一个程序里。
 
 各模块仍只通过 SQLite 队列/状态解耦(谁也不直接调谁),但不再是 N 个 OS 进程,
 而是这一个进程里的 N 个线程,各按自己的 cadence 调对应 run_once()。
@@ -25,7 +25,7 @@ import threading
 import time
 
 from agent.config import load_trading
-from agent.db import DB, FLINT_DIR
+from agent.db import DB, FLINTRADE_DIR
 
 _stop = threading.Event()
 _LOCK_FD = None  # 持有到进程退出
@@ -35,7 +35,7 @@ _LAST_OK: dict[str, float] = {}  # loop name → 最近一次成功 run_once 的
 def _acquire_singleton() -> bool:
     """单实例锁:防止两个 daemon 并存(=两个 executor 重复消费/下单)。"""
     global _LOCK_FD
-    _LOCK_FD = open(FLINT_DIR / ".daemon.lock", "w")
+    _LOCK_FD = open(FLINTRADE_DIR / ".daemon.lock", "w")
     try:
         fcntl.flock(_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -188,7 +188,7 @@ def main() -> int:
     with DB(role="reader") as db:
         db.beat(process="daemon")  # 总管自身心跳一记
     loops = _loops()
-    print(f"[daemon] Flint 单进程总管启动 · {len(loops)} loops", flush=True)
+    print(f"[daemon] Flintrade 单进程总管启动 · {len(loops)} loops", flush=True)
     threads = []
     for name, factory, cadence in loops:
         t = threading.Thread(target=_worker, args=(name, factory, cadence),

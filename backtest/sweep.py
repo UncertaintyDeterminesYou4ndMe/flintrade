@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Parameter sweep for Flint trading strategy.
+Parameter sweep for Flintrade trading strategy.
 
 Two-phase approach:
 1. Broad sweep: stop_loss x take_profit x score_threshold (most impactful)
@@ -143,7 +143,7 @@ def print_results(scored, top_n=30):
 
 
 def print_current_vs_best(scored):
-    """Compare current Flint params with the best found."""
+    """Compare current Flintrade params with the best found."""
     # Find current params result
     current = None
     for _, r in scored:
@@ -160,7 +160,7 @@ def print_current_vs_best(scored):
         print(f"CURRENT vs BEST")
         print(f"{'='*80}")
 
-        headers = ["Metric", "Current (Flint)", "Best Found", "Delta"]
+        headers = ["Metric", "Current (Flintrade)", "Best Found", "Delta"]
         rows = []
 
         def add_row(metric, curr_val, best_val, fmt=".2f", suffix=""):
@@ -183,7 +183,7 @@ def print_current_vs_best(scored):
             add_row("Avg Loss", cs['avg_loss'], bs['avg_loss'], ".2f", "$")
             add_row("Max DD", cs['max_drawdown'], bs['max_drawdown'], ".2f", "%")
         else:
-            print("(Current Flint params not found in sweep)")
+            print("(Current Flintrade params not found in sweep)")
             bs = best.summary()
 
         print(f"\nBest strategy: {best.params.label()}")

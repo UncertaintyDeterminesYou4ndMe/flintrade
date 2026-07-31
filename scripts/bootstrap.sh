@@ -9,8 +9,8 @@
 # without reading anything else. Next steps are printed at the end.
 set -uo pipefail
 
-FLINT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$FLINT_DIR"
+FLINTRADE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$FLINTRADE_DIR"
 PASS="✓"; WARN="!"
 
 step()  { printf '\n── %s ──\n' "$1"; }
@@ -69,27 +69,27 @@ fi
 
 # ── 4. config files ───────────────────────────────────────────────────────
 step "4/6 config"
-if [ ! -f flint.env ]; then
-  cp flint.env.example flint.env
-  ok "created flint.env from template (FLINT_DRY_RUN=1 — safe default)"
+if [ ! -f flintrade.env ]; then
+  cp flintrade.env.example flintrade.env
+  ok "created flintrade.env from template (FLINTRADE_DRY_RUN=1 — safe default)"
 else
-  ok "flint.env exists (kept as-is)"
+  ok "flintrade.env exists (kept as-is)"
 fi
 [ -f state.json ] || { cp state.json.example state.json 2>/dev/null && ok "created state.json" || true; }
 mkdir -p logs
-.venv/bin/python -c "from agent.db import init_db; init_db()" && ok "flint.db schema ready"
+.venv/bin/python -c "from agent.db import init_db; init_db()" && ok "flintrade.db schema ready"
 
 # ── 5. LLM provider check ────────────────────────────────────────────────
 step "5/6 LLM provider"
 # Default = local `claude` CLI (Claude Code). Any OpenAI-compatible or
 # Anthropic API provider works too — edit agent/config/trading.toml [models]
-# and export the matching key in flint.env. Details: python -m agent.llm check
+# and export the matching key in flintrade.env. Details: python -m agent.llm check
 if .venv/bin/python -m agent.llm check; then
   ok "LLM tiers resolved"
 else
   warn "LLM provider not ready — pick one in agent/config/trading.toml [models]:"
   echo '     claude-cli (default, needs the `claude` CLI) | anthropic | openai | deepseek | moonshot | openrouter | ollama'
-  echo '     then put the API key in flint.env and re-run: .venv/bin/python -m agent.llm check'
+  echo '     then put the API key in flintrade.env and re-run: .venv/bin/python -m agent.llm check'
   FAILED=1
 fi
 
@@ -98,8 +98,8 @@ step "6/6 smoke test"
 SMOKE_LOG=/tmp/flintrade_smoke.log
 SMOKE_DB=/tmp/flintrade_smoke.db
 rm -f "$SMOKE_DB" "$SMOKE_DB"-wal "$SMOKE_DB"-shm
-FLINT_DB="$SMOKE_DB" .venv/bin/python -c "from agent.db import init_db; init_db()" >/dev/null 2>&1
-if FLINT_DB="$SMOKE_DB" FLINT_DRY_RUN=1 FLINT_LLM_DRY=1 \
+FLINTRADE_DB="$SMOKE_DB" .venv/bin/python -c "from agent.db import init_db; init_db()" >/dev/null 2>&1
+if FLINTRADE_DB="$SMOKE_DB" FLINTRADE_DRY_RUN=1 FLINTRADE_LLM_DRY=1 \
    .venv/bin/python -m agent.daemon --once >"$SMOKE_LOG" 2>&1; then
   ERRS=$(grep -c '✗' "$SMOKE_LOG" 2>/dev/null || true)
   if [ "${ERRS:-0}" -eq 0 ]; then
@@ -124,15 +124,15 @@ cat <<'NEXT'
 
 Next steps (in order, each optional until the last):
   1. Paper-trading credentials (free): https://open.longbridge.com
-     → fill LONGBRIDGE_APP_KEY / APP_SECRET / ACCESS_TOKEN in flint.env
+     → fill LONGBRIDGE_APP_KEY / APP_SECRET / ACCESS_TOKEN in flintrade.env
   2. Pick your LLM in agent/config/trading.toml [models]  (default: claude CLI)
      → verify:  .venv/bin/python -m agent.llm check
-  3. Try one real cycle (still no orders — FLINT_DRY_RUN=1 in flint.env):
-     → set -a; source flint.env; set +a; .venv/bin/python -m agent.daemon --once
+  3. Try one real cycle (still no orders — FLINTRADE_DRY_RUN=1 in flintrade.env):
+     → set -a; source flintrade.env; set +a; .venv/bin/python -m agent.daemon --once
   4. Run it for real (paper account, real orders, no real money):
-     → set FLINT_DRY_RUN=0 in flint.env
-     → cp launchd/com.flint.daemon.plist.example ~/Library/LaunchAgents/com.flint.daemon.plist
-       (edit paths + credentials inside), then: launchctl load ~/Library/LaunchAgents/com.flint.daemon.plist
+     → set FLINTRADE_DRY_RUN=0 in flintrade.env
+     → cp launchd/com.flintrade.daemon.plist.example ~/Library/LaunchAgents/com.flintrade.daemon.plist
+       (edit paths + credentials inside), then: launchctl load ~/Library/LaunchAgents/com.flintrade.daemon.plist
   5. Watch it: python3 dashboard/server.py  →  http://localhost:8383
 NEXT
 exit "$FAILED"

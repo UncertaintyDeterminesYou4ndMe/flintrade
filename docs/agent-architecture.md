@@ -1,11 +1,11 @@
 ---
-name: Flint Agent Architecture (Daemon Plan)
-description: Flint 从 cron 单次决策升级为常驻多进程交易 Agent 的设计。多个异步信号生产者(技术面/舆情/资讯/用户)只提交 intent,单一执行权威(Executor)做组合风控 + 下单 + 单一写者,Reconciler 持续对账,Dreaming 在睡眠期合成记忆。去掉一仓制与固定本金,以组合风控纪律取代。
+name: Flintrade Agent Architecture (Daemon Plan)
+description: Flintrade 从 cron 单次决策升级为常驻多进程交易 Agent 的设计。多个异步信号生产者(技术面/舆情/资讯/用户)只提交 intent,单一执行权威(Executor)做组合风控 + 下单 + 单一写者,Reconciler 持续对账,Dreaming 在睡眠期合成记忆。去掉一仓制与固定本金,以组合风控纪律取代。
 type: project
 supersedes: arena-architecture.md
 ---
 
-# Flint Agent Architecture (Daemon)
+# Flintrade Agent Architecture (Daemon)
 
 > **演进说明(2026-06):** 下文按"多进程"描述各 loop。实现上已**合并为单进程**
 > `agent/daemon.py`:同样的 loop,改为一个进程里的多线程,各按 cadence 调 `run_once()`。
@@ -13,7 +13,7 @@ supersedes: arena-architecture.md
 > 崩溃隔离改为每 loop try/except + launchd 对单 job 的 KeepAlive。
 > 语义记忆后端 = **LanceDB + fastembed**(进程内 ONNX 小模型),装在 `.venv`;
 > LLM 走 `agent/llm.py` 可插拔 provider(chat 现 Claude,embed 现 fastembed)。
-> 部署 = 一个 `com.flint.daemon` plist,跑 `.venv/bin/python -m agent.daemon`。
+> 部署 = 一个 `com.flintrade.daemon` plist,跑 `.venv/bin/python -m agent.daemon`。
 
 ## 0. 这次升级的本质
 
@@ -47,7 +47,7 @@ supersedes: arena-architecture.md
         ┌──────────────┐   broker fills(含盘外/止损/部分)   │
         │ risk_monitor │◀──────────────┐                  ▼
         │ 熔断/急停HALT │               │           ┌─────────────┐
-        └──────┬───────┘        ┌──────┴──────┐    │  flint.db    │ 单一真相
+        └──────┬───────┘        ┌──────┴──────┐    │  flintrade.db    │ 单一真相
                │ FLATTEN intent  │ reconciler  │───▶│ (SQLite/WAL) │
                └────────────────▶│ 持续对账     │    └─────────────┘
                                  └─────────────┘
@@ -58,7 +58,7 @@ supersedes: arena-architecture.md
 
 ---
 
-## 2. 共享底座:flint.db(SQLite,WAL 模式,零依赖)
+## 2. 共享底座:flintrade.db(SQLite,WAL 模式,零依赖)
 
 为什么从 JSON 升级到 SQLite:不是因为数据大(8MB/年都算不上),而是 (a) 多进程并发读写需要原子事务,JSON 整文件重写会撕裂;(b) 高频后要频繁 `GROUP BY symbol,session,setup` 做聚合。stdlib `sqlite3` 即可,仍然零外部依赖,符合 CLAUDE.md 约束。
 
@@ -146,7 +146,7 @@ Risk Gate 对每个 intent 的裁决流水(全部硬编码、不经 LLM):
 
 ## 6. Dreaming:睡眠期记忆合成(接前几轮讨论)
 
-挂在**市场关闭窗口**(原 `MODE=SKIP`,即 Flint 的"睡眠期"),用日期戳防重复做梦。分级:
+挂在**市场关闭窗口**(原 `MODE=SKIP`,即 Flintrade 的"睡眠期"),用日期戳防重复做梦。分级:
 
 - **平仓即时(纯代码,0 LLM)** — 每次平仓回写对应 lesson 的 confidence(印证+/打脸-)。在线时间衰减。
 - **每日(Haiku)** — 当天成交滚进 `agg` 聚合表,生成当日简报。
@@ -165,7 +165,7 @@ Risk Gate 对每个 intent 的裁决流水(全部硬编码、不经 LLM):
 ## 7. 分阶段落地(每阶段独立可验、不破坏现有 cron)
 
 **Phase 0 — 地基(零行为变更):**
-- `flint.db` schema + `migrate.py`(state.json → db)。
+- `flintrade.db` schema + `migrate.py`(state.json → db)。
 - `db.py` 访问层(WAL、单写者断言)。
 - Executor 在写后导出 state.json 投影,保证 dashboard/backtest 不断。
 

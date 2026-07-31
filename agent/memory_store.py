@@ -10,7 +10,7 @@
 依赖(lancedb)只在 .venv 内;缺失或嵌入后端不可用时**全部优雅降级**
 (index→False,index_new_trades→0,recall_similar→[]),绝不抛错拖垮决策。
 
-向量库落盘在 FLINT_DIR/flint_lance(可用 FLINT_LANCE 覆盖),与 flint.db 并列。
+向量库落盘在 FLINTRADE_DIR/flintrade_lance(可用 FLINTRADE_LANCE 覆盖),与 flintrade.db 并列。
 """
 from __future__ import annotations
 
@@ -18,9 +18,9 @@ import os
 import sys
 
 from agent import llm
-from agent.db import DB, FLINT_DIR, now
+from agent.db import DB, FLINTRADE_DIR, now
 
-LANCE_PATH = os.environ.get("FLINT_LANCE", str(FLINT_DIR / "flint_lance"))
+LANCE_PATH = os.environ.get("FLINTRADE_LANCE", str(FLINTRADE_DIR / "flintrade_lance"))
 TABLE = "memory"
 
 

@@ -10,7 +10,7 @@ longbridge CLI 速率治理器 —— 所有 Python 侧的 longbridge 调用唯�
     ok, data, raw = lb.run(["quote", "NVDA.US", "--format", "json"])   # data=已解析 JSON 或 None
     ok, data, raw = lb.run(["order","buy","NVDA.US","3","--price","200","--outside-rth","ANY_TIME","-y","--format","json"], timeout=20)
 
-可调(env):FLINT_LB_MIN_INTERVAL(默认 0.35s 全局最小间隔)、FLINT_LB_RETRIES(默认 4)。
+可调(env):FLINTRADE_LB_MIN_INTERVAL(默认 0.35s 全局最小间隔)、FLINTRADE_LB_RETRIES(默认 4)。
 """
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ import time
 
 _lock = threading.Lock()
 _last_start = 0.0
-_MIN_INTERVAL = float(os.environ.get("FLINT_LB_MIN_INTERVAL", "0.35"))
-_RETRIES = int(os.environ.get("FLINT_LB_RETRIES", "4"))
+_MIN_INTERVAL = float(os.environ.get("FLINTRADE_LB_MIN_INTERVAL", "0.35"))
+_RETRIES = int(os.environ.get("FLINTRADE_LB_RETRIES", "4"))
 
 
 def _rate_limited(s: str) -> bool:

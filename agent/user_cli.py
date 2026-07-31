@@ -1,5 +1,5 @@
 """
-Flint 用户手动控制 + 状态界面(「现在啥情况」)。
+Flintrade 用户手动控制 + 状态界面(「现在啥情况」)。
 
 设计原则:用户手动交易**不绕过风控**。本 CLI 只往 intents 队列投递意图
 (source='user', priority=最高),由 Executor 的 Risk Gate 统一定额/裁决;
@@ -251,7 +251,7 @@ def _status(prev_seen: str | None = None) -> int:
 
     line = "─" * 64
     print(line)
-    print("  FLINT · 现在啥情况")
+    print("  FLINTRADE · 现在啥情况")
     print(f"  时空锚点  距上次互动 {_fmt_gap(prev_seen)}"
           + (f"   上次做梦 {last_dream}" if last_dream else "   尚未做梦"))
     print(line)
@@ -330,7 +330,7 @@ def _status(prev_seen: str | None = None) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agent.user_cli",
-        description="Flint 用户手动控制 + 状态。手动单走同一道风控闸门(不绕过风控)。",
+        description="Flintrade 用户手动控制 + 状态。手动单走同一道风控闸门(不绕过风控)。",
     )
     sub = p.add_subparsers(dest="cmd")
 

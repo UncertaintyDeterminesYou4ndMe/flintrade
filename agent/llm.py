@@ -10,10 +10,10 @@
     [embeddings]。换厂商只改 toml。
   * 交易系统的确定性优先:**不做跨模型自动 fallback**。调用失败重试后仍失败
     → 返回 ""(调用方解析失败 → WAIT,不交易)。宁可错过,不换脑子交易。
-  * API key 一律从环境变量读(flint.env 注入),配置文件里永远不落 key。
+  * API key 一律从环境变量读(flintrade.env 注入),配置文件里永远不落 key。
     base_url 仅接受 http/https(防止把 key 发到奇怪的地方)。
 
-干跑:FLINT_LLM_DRY=1 时 complete() 不真调模型,打印将执行的调用并返回占位串
+干跑:FLINTRADE_LLM_DRY=1 时 complete() 不真调模型,打印将执行的调用并返回占位串
 (用于无花费验证,理念同 broker 的 dry-run)。
 
 自检:python -m agent.llm check   # 每个 tier 解析到哪个 provider/model、key 是否就位
@@ -36,7 +36,7 @@ _TRUTHY = {"1", "true", "yes"}
 
 
 def _dry() -> bool:
-    return os.environ.get("FLINT_LLM_DRY", "").strip().lower() in _TRUTHY
+    return os.environ.get("FLINTRADE_LLM_DRY", "").strip().lower() in _TRUTHY
 
 
 # ── provider 注册表(声明式;新增厂商只加一条) ────────────────────────────────

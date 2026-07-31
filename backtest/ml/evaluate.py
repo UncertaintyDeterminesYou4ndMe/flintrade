@@ -1,6 +1,6 @@
 """
 Evaluation harness — given a trained factor + gate, compute P&L and IC stats
-using HARD top-1 selection (matches flint's actual single-position decision).
+using HARD top-1 selection (matches flintrade's actual single-position decision).
 
 Pure numpy. Imports from features.py for shared math, but not from torch.
 """

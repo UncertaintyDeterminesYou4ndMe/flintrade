@@ -1,4 +1,4 @@
-"""Shared market-session "clock / orientation" module for Flint daemons.
+"""Shared market-session "clock / orientation" module for Flintrade daemons.
 
 All daemon processes call into this module to agree on the current US market
 session. The logic here is a faithful port of the inline session-resolution

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.flint.daemon</string>
+    <string>com.flintrade.daemon</string>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
     <key>WorkingDirectory</key>
@@ -22,7 +22,7 @@
         <key>LONGBRIDGE_APP_SECRET</key><string>YOUR_APP_SECRET</string>
         <key>LONGBRIDGE_ACCESS_TOKEN</key><string>YOUR_ACCESS_TOKEN</string>
         <!-- SAFETY: "1" = dry-run (simulate fills, place NO orders). Flip to "0" deliberately. -->
-        <key>FLINT_DRY_RUN</key><string>1</string>
+        <key>FLINTRADE_DRY_RUN</key><string>1</string>
     </dict>
     <!-- launchd's default soft maxfiles (256) leaves no headroom; the daemon
          watchdog restarts on fd pressure, but give it room to breathe. -->

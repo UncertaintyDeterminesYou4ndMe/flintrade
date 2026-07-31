@@ -1,5 +1,5 @@
 """
-memory_prior — the bridge between Flint's "Dreaming" aggregate stats (the
+memory_prior — the bridge between Flintrade's "Dreaming" aggregate stats (the
 agent's OWN realized trade outcomes) and the offline backtest ML factor/gate
 framework.
 
@@ -12,7 +12,7 @@ PRIOR that the factor features and/or the gate can opt into.
 Design principles:
   - Pure stdlib + sqlite3. NO torch on the export path, so `export_json()` runs
     anywhere (and training can load the prior offline, with no live db).
-  - Read-only. Never writes to flint.db. Never trades.
+  - Read-only. Never writes to flintrade.db. Never trades.
   - Sample-size back-off is the whole point: a 2-sample bucket is noise, so we
     back off (symbol+session+rsi → symbol+session → symbol → global) to the
     most specific bucket that clears `min_trips`, and fall to `default` if even
@@ -33,7 +33,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-# Repo root = .../flint ; this file is .../flint/backtest/ml/memory_prior.py
+# Repo root = .../flintrade ; this file is .../flintrade/backtest/ml/memory_prior.py
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent.parent
 _DEFAULT_JSON = _HERE / "memory_prior.json"
@@ -46,17 +46,17 @@ _GLOBAL = "__global__"
 # db path resolution — reuse agent.db.DB if importable, else open sqlite raw
 # ─────────────────────────────────────────────────────────────────────────
 def _resolve_db_path(db_path: str | Path | None) -> Path:
-    """FLINT_DB env > explicit arg > agent.db.DB_PATH (if importable) > repo flint.db."""
+    """FLINTRADE_DB env > explicit arg > agent.db.DB_PATH (if importable) > repo flintrade.db."""
     if db_path is not None:
         return Path(db_path)
-    env = os.environ.get("FLINT_DB")
+    env = os.environ.get("FLINTRADE_DB")
     if env:
         return Path(env)
     try:
         from agent.db import DB_PATH  # type: ignore
         return Path(DB_PATH)
     except Exception:
-        return _REPO_ROOT / "flint.db"
+        return _REPO_ROOT / "flintrade.db"
 
 
 def _connect(db_path: str | Path | None) -> sqlite3.Connection:

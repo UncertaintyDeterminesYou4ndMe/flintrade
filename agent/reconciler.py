@@ -12,7 +12,7 @@ broker 端的 resting stop / take-profit 单也可能在我们不知情时成交
   3. 漂移检测(仅 live):比对 broker.positions() 与本地 open_positions();
      不一致时只 add_signal(kind='drift') 报警,绝不擅自改持仓。
 
-安全性:默认 Broker() 走 dry-run(除非 FLINT_DRY_RUN=0),永不下单。每项职责
+安全性:默认 Broker() 走 dry-run(除非 FLINTRADE_DRY_RUN=0),永不下单。每项职责
 独立 try/except,一项失败不拖垮整轮循环。
 
 避免重复结算:Executor 对即时成交的单会自己把 order 置 'filled' 并记账;
@@ -125,7 +125,7 @@ def _broker_cost_map(rows: list) -> dict[str, float]:
 class Reconciler:
     def __init__(self, broker: Broker | None = None):
         self.db = DB(role="reconciler")
-        self.broker = broker or Broker()  # 默认 dry-run(env FLINT_DRY_RUN 控制)
+        self.broker = broker or Broker()  # 默认 dry-run(env FLINTRADE_DRY_RUN 控制)
         self.commission = load_trading()["execution"]["commission_per_share"]
         # symbol -> 上次上报的 delta(bq-dq)。用于 drift 信号去重:只在 delta 变化
         # 时才 add_signal,避免同一个未变化的漂移每轮都刷一条(31,606 条假信号的成因)。
@@ -233,7 +233,7 @@ class Reconciler:
     def _sync_equity(self) -> list[str]:
         if self.broker.dry_run:
             return []
-        # 固定 sleeve 模式:Flint 只用分配的本金,不随券商账户净值同步
+        # 固定 sleeve 模式:Flintrade 只用分配的本金,不随券商账户净值同步
         # (否则会把 $10K sleeve 刷成账户真实净值 $126K)。
         try:
             from agent.config import load_risk

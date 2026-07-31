@@ -1,5 +1,5 @@
 """
-Flint 进程监管层(Phase 2 watchdog + 健康 CLI)。
+Flintrade 进程监管层(Phase 2 watchdog + 健康 CLI)。
 
 职责:只观察,不写库。以 reader 角色读取 heartbeats / risk_state / positions /
 intents / trades,判断每个长驻进程是否还在心跳。STALE/MISSING 时把告警 **打印** 到
@@ -108,7 +108,7 @@ def status() -> None:
 
     icon = {"up": "✅", "STALE": "⚠️ ", "MISSING": "❌"}
     print("=" * 60)
-    print(f"  FLINT SUPERVISOR  ·  {now()}  ·  stale>{stale_sec}s")
+    print(f"  FLINTRADE SUPERVISOR  ·  {now()}  ·  stale>{stale_sec}s")
     print("=" * 60)
     print("  PROCESSES")
     for r in results:

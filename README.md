@@ -6,7 +6,7 @@ An autonomous paper-trading agent that dreams, remembers, and reviews its own tr
 
 ## What it is
 
-flintrade is a single-process, multi-loop daemon that paper-trades US equities. (Naming: **flintrade** is the repo; the agent calls itself **Flint** — hence `flint.env`, `flint.db`, `FLINT_*` env vars, and the `com.flint.daemon` launchd label.) Internally it runs as **seven concurrent loops implemented as threads**: three signal producers (technical/Arena, event/catalyst, news) write trade *intents* into a SQLite queue; an **executor** thread consumes that queue through a hard-coded portfolio risk gate before it ever touches a broker; a **reconciler** keeps the book honest against real fills; a **risk monitor** watches for drawdown and can halt trading; and a **dreaming** loop synthesizes memory during market-closed windows.
+flintrade is a single-process, multi-loop daemon that paper-trades US equities. Internally it runs as **seven concurrent loops implemented as threads**: three signal producers (technical/Arena, event/catalyst, news) write trade *intents* into a SQLite queue; an **executor** thread consumes that queue through a hard-coded portfolio risk gate before it ever touches a broker; a **reconciler** keeps the book honest against real fills; a **risk monitor** watches for drawdown and can halt trading; and a **dreaming** loop synthesizes memory during market-closed windows.
 
 The core philosophy, carried over from the project's original ["Arena"](docs/agent-architecture.md) design and never relaxed: **the LLM proposes, deterministic code disposes.** The model reasons about direction, sizing rationale, and thesis. It never calls the broker and never writes the books — only the executor does that, and only after every proposal clears a risk gate that is plain Python, not a prompt.
 
@@ -25,7 +25,7 @@ The core philosophy, carried over from the project's original ["Arena"](docs/age
        │ risk_monitor │◀── partial/stop/etc.)            │ of `longbridge`
        │ circuit       │                                 ▼
        │ breaker       │                          ┌──────────────┐
-       └──────┬────────┘                          │  flint.db    │  single source
+       └──────┬────────┘                          │  flintrade.db    │  single source
               │ FLATTEN intent      ┌───────────┐  │ (SQLite/WAL) │  of truth
               └────────────────────▶│reconciler │─▶└──────────────┘
                                     └───────────┘
@@ -52,7 +52,7 @@ One rule underlies everything: **producers only ever write to the `intents` tabl
 git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flintrade && bash scripts/bootstrap.sh
 ```
 
-That's it. On a fresh Mac, `bootstrap.sh` sets up the venv, installs the `longbridge` CLI via Homebrew, initializes the database, checks your LLM provider, and runs a full dry-run smoke test (all seven loops, zero orders, zero LLM cost). It's idempotent and ends by printing exactly what to do next — get free [paper-trading credentials](https://open.longbridge.com), pick an LLM, watch a dry run, then flip `FLINT_DRY_RUN=0`.
+That's it. On a fresh Mac, `bootstrap.sh` sets up the venv, installs the `longbridge` CLI via Homebrew, initializes the database, checks your LLM provider, and runs a full dry-run smoke test (all seven loops, zero orders, zero LLM cost). It's idempotent and ends by printing exactly what to do next — get free [paper-trading credentials](https://open.longbridge.com), pick an LLM, watch a dry run, then flip `FLINTRADE_DRY_RUN=0`.
 
 **Using an AI coding agent?** Paste this into Claude Code / any coding agent:
 
@@ -83,9 +83,9 @@ Subscription plans (Claude Code, Kimi Code) are wired through their own CLIs in 
 
 Two tiers: `trader` (decisions — use a frontier model) and `flash` (dreaming/postmortems — use the cheapest thing you trust). Deliberate design choice: **no automatic cross-model fallback** — if the configured model fails after retries, the agent WAITs instead of trading with a different brain.
 
-`FLINT_DRY_RUN=1` is the default posture in `flint.env.example` — the daemon runs its full decision loop and simulates fills without ever calling the broker. Only flip it to `0` once you've watched it run.
+`FLINTRADE_DRY_RUN=1` is the default posture in `flintrade.env.example` — the daemon runs its full decision loop and simulates fills without ever calling the broker. Only flip it to `0` once you've watched it run.
 
-For a persistent deployment, see `launchd/com.flint.daemon.plist.example` as a template for running the daemon under launchd (macOS) with auto-restart.
+For a persistent deployment, see `launchd/com.flintrade.daemon.plist.example` as a template for running the daemon under launchd (macOS) with auto-restart.
 
 Two operational views:
 
@@ -107,7 +107,7 @@ python3 dashboard/server.py                # web dashboard at http://localhost:8
 
 ## Safety & disclaimer
 
-flintrade is paper-trading only by design, and dry-run (`FLINT_DRY_RUN=1`) is the default in the example config — no order reaches a broker unless you deliberately flip that switch, and even then it targets a paper-trading account, not real capital. This is an educational and research project exploring how far a constrained LLM-proposes/code-disposes architecture can go, not a trading product.
+flintrade is paper-trading only by design, and dry-run (`FLINTRADE_DRY_RUN=1`) is the default in the example config — no order reaches a broker unless you deliberately flip that switch, and even then it targets a paper-trading account, not real capital. This is an educational and research project exploring how far a constrained LLM-proposes/code-disposes architecture can go, not a trading product.
 
 **This is not financial advice.** Nothing here is a recommendation to buy, sell, or hold any security. Use it entirely at your own risk.
 

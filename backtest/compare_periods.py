@@ -3,7 +3,7 @@
 Compare trading performance across kline periods (1m, 5m, 1h)
 under 30-minute decision frequency.
 
-Key insight: Flint runs every 30 min. The question is which kline period
+Key insight: Flintrade runs every 30 min. The question is which kline period
 produces better *signals* at that decision frequency.
 
 - 1m bars: indicators computed on 50 × 1m = 50 min lookback. Decide every 30th bar.
