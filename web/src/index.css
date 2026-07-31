@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+/* Apple Stocks-style dark theme.
+ * Pure black canvas, elevated cards (#1C1C1E), system font stack renders as
+ * SF Pro on macOS. Semantic market colors: green up / red down. */
+@theme {
+  --color-surface: #000000;
+  --color-card: #1c1c1e;
+  --color-fg: #f5f5f7;
+  --color-muted: #8e8e93;
+  --color-faint: #636366;
+  --color-line: #2c2c2e;
+  --color-up: #30d158;
+  --color-down: #ff453a;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-surface);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(48, 209, 88, 0.28);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-faint);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* ── motion — transform/opacity only ───────────────────────────────── */
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.dot-breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes fade-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.reveal-in {
+  animation: fade-up-in 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot-breathe {
+    animation: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .reveal-in {
+    animation: none;
+  }
+}
+
+/* ── skeleton loading — rounded card-tone bars ─────────────────────── */
+
+@keyframes skeleton-shimmer {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.skeleton-bar {
+  background: var(--color-card);
+  border-radius: 6px;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar {
+    animation: none;
+  }
+}

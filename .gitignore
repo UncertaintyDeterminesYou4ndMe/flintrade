@@ -20,3 +20,10 @@ flint_lance/
 
 # launchd plist contains real credentials — template is com.flint.daemon.plist.example
 launchd/com.flint.daemon.plist
+
+# web SPA build artifacts
+web/node_modules/
+web/dist/
+
+# runtime state (created by bootstrap.sh)
+state.json

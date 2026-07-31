@@ -23,6 +23,7 @@ Usage:
 """
 
 import json
+import mimetypes
 import sys
 import http.server
 import urllib.parse
@@ -31,7 +32,26 @@ from pathlib import Path
 
 FLINT_DIR = Path(__file__).resolve().parent.parent
 LOGS_DIR = FLINT_DIR / "logs"
+WEB_DIST_DIR = FLINT_DIR / "web" / "dist"
 PORT = 8383
+
+# ─────────────────────────────────────────────────────────────────────────
+# static-file content types for the SPA build (web/dist)
+# ─────────────────────────────────────────────────────────────────────────
+_SPA_CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".map": "application/json; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+}
+
+
+def _spa_dist_available():
+    return (WEB_DIST_DIR / "index.html").is_file()
 
 # Make the `agent` package importable when run as `python3 dashboard/server.py`.
 if str(FLINT_DIR) not in sys.path:
@@ -151,6 +171,120 @@ def get_agg(limit=200):
         "FROM agg ORDER BY trips DESC LIMIT ?",
         (limit,),
     )
+
+
+def get_equity_curve():
+    """Reconstruct an equity curve from inception_equity + closed strategy trades.
+
+    Defensive: missing kv / db yields inception_equity=10000.0, empty points.
+    """
+    result = {"inception_date": None, "inception_equity": 10000.0, "points": []}
+    db = _reader()
+    if db is None:
+        return result
+    try:
+        inception_date = db.kv_get("inception_date")
+        raw_equity = db.kv_get("inception_equity")
+        try:
+            inception_equity = float(raw_equity) if raw_equity is not None else 10000.0
+        except (TypeError, ValueError):
+            inception_equity = 10000.0
+
+        equity = inception_equity
+        points = []
+        if inception_date:
+            rows = db.conn.execute(
+                "SELECT ts, pnl FROM trades "
+                "WHERE pnl IS NOT NULL AND ts >= ? "
+                "AND (attribution IN ('strategy') OR attribution IS NULL) "
+                "ORDER BY ts",
+                (inception_date,),
+            ).fetchall()
+            for r in rows:
+                equity += r["pnl"]
+                points.append({"ts": r["ts"], "equity": equity})
+
+        return {"inception_date": inception_date, "inception_equity": inception_equity, "points": points}
+    except Exception:
+        return result
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def get_reviews():
+    """trade_reviews joined with trades.ts, plus postmortem.stats() (both defensive)."""
+    reviews = _query(
+        "SELECT r.*, t.ts as trade_ts FROM trade_reviews r "
+        "LEFT JOIN trades t ON t.id = r.trade_id "
+        "ORDER BY r.trade_id DESC LIMIT 200"
+    )
+    try:
+        from agent import postmortem
+        stats = postmortem.stats()
+    except Exception:
+        stats = {}
+    return {"reviews": reviews, "stats": stats}
+
+
+def get_config():
+    """风控纪律 + 交易配置(只读展示,SPA 的 Colophon 页脚用)。"""
+    try:
+        from agent.config import load_risk, load_trading
+        risk, trading = load_risk(), load_trading()
+        from agent import session as sess
+        cur = sess.current_session()
+        return {
+            "session": cur,
+            "universe": trading.get("universe", {}).get("symbols", []),
+            "risk": {
+                "max_risk_pct": risk["per_trade"]["max_risk_pct"],
+                "max_concurrent_positions": risk["portfolio"]["max_concurrent_positions"],
+                "max_open_risk_pct": risk["portfolio"]["max_open_risk_pct"],
+                "max_per_symbol_pct": risk["portfolio"]["max_per_symbol_pct"],
+                "max_per_cluster_pct": risk["clusters"]["max_per_cluster_pct"],
+                "daily_loss_limit_pct": risk["circuit_breaker"]["daily_loss_limit_pct"],
+                "volume_ratio_floor": risk["per_trade"]["volume_ratio_floor"],
+                "session_close_blackout_min": risk["per_trade"]["session_close_blackout_min"],
+                "revenge_cooldown_min": risk["per_trade"]["revenge_cooldown_min"],
+            },
+            "cadence": trading.get("cadence", {}),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_brain():
+    """reflect.recall() (pure db reads) + agg matrix + last_dream_date, all defensive.
+
+    NOTE: agent.reflect imports agent.llm lazily inside its functions, but the
+    import of agent.reflect itself is still kept out of module scope here —
+    only pulled in when this handler branch actually runs.
+    """
+    try:
+        from agent.reflect import recall
+        recall_data = recall()
+    except Exception as e:
+        recall_data = {"error": str(e)}
+
+    agg = get_agg()
+
+    last_dream_date = None
+    db = _reader()
+    if db is not None:
+        try:
+            last_dream_date = db.kv_get("last_dream_date")
+        except Exception:
+            last_dream_date = None
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+    return {"recall": recall_data, "agg": agg, "last_dream_date": last_dream_date}
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -729,6 +863,7 @@ class FlintHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        is_api = path.startswith("/api/")
         try:
             if path == "/api/risk":
                 self._json(get_risk() or {})
@@ -742,24 +877,76 @@ class FlintHandler(http.server.BaseHTTPRequestHandler):
                 self._json(get_processes())
             elif path == "/api/memory":
                 self._json({"recall": get_recall(), "agg": get_agg()})
-            else:
-                html = render_html()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
+            elif path == "/api/equity-curve":
+                self._json(get_equity_curve())
+            elif path == "/api/reviews":
+                self._json(get_reviews())
+            elif path == "/api/brain":
+                self._json(get_brain())
+            elif path == "/api/config":
+                self._json(get_config())
+            elif path == "/legacy":
+                self._html(render_html())
+            elif is_api:
+                # Unmatched /api/* path — still a JSON, CORS-bearing response.
+                self.send_response(404)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
-                self.wfile.write(html.encode())
+                self.wfile.write(json.dumps({"error": "not found"}).encode())
+            elif _spa_dist_available():
+                self._serve_spa(path)
+            else:
+                self._html(render_html())
         except Exception as e:
             # Never 500 the page — show the error so the dashboard stays useful.
             self.send_response(200)
+            if is_api:
+                self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(f"<pre>dashboard error: {_escape(repr(e))}</pre>".encode())
 
+    def _html(self, html):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(html.encode())
+
     def _json(self, data):
         self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2, default=str).encode())
+
+    def _serve_spa(self, path):
+        """Serve web/dist as a static SPA build, with path-traversal safety and
+        a fallback to index.html for unknown paths (client-side routing)."""
+        dist_root = WEB_DIST_DIR.resolve()
+        rel = path.lstrip("/") or "index.html"
+        candidate = (dist_root / rel).resolve()
+
+        # Path-traversal guard: candidate must stay inside dist_root.
+        if candidate != dist_root and dist_root not in candidate.parents:
+            candidate = dist_root / "index.html"
+
+        if not candidate.is_file():
+            candidate = dist_root / "index.html"
+
+        content_type = _SPA_CONTENT_TYPES.get(
+            candidate.suffix.lower(),
+            mimetypes.guess_type(str(candidate))[0] or "application/octet-stream",
+        )
+        try:
+            data = candidate.read_bytes()
+        except Exception as e:
+            self._html(f"<pre>dashboard error: {_escape(repr(e))}</pre>")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.end_headers()
+        self.wfile.write(data)
 
     def log_message(self, *a):
         pass

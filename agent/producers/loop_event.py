@@ -110,7 +110,12 @@ def call_llm(data: dict) -> str:
 
 
 def run_once() -> str | list[str]:
-    db = DB(role="event")
+    """入口:连接生命周期显式管理(不能依赖 GC 关闭,见 2026-07-26 fd 泄漏事故)。"""
+    with DB(role="event") as db:
+        return _run_once(db)
+
+
+def _run_once(db: DB) -> str | list[str]:
     db.beat(process="loop_event")
     if db.is_halted():
         return "halted — 跳过舆情信号产出"

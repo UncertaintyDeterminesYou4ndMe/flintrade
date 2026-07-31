@@ -44,33 +44,40 @@ One rule underlies everything: **producers only ever write to the `intents` tabl
 
 **Self-postmortem & calibration.** `agent/postmortem.py` reviews every closed strategy trade with a structured, flash-tier-model verdict: was the thesis right, how were entry/exit timing, how much did it slip against the stop. Hard honesty rules are enforced in the synthesis prompt — a statistic with n<10 can never be phrased as a rule, only as preliminary. The agent's actual track record (sample size, win rate, net P&L) is computed in plain code and injected into every decision as `self_assessment`, so the model can't quietly forget how it's really doing.
 
-**Pluggable LLM tiers.** `agent/llm.py` separates a trader tier (frontier model, the real edge) from a flash tier (cheap model for dreaming and postmortems), configured in `agent/config/trading.toml` — swapping providers (Claude today, OpenAI-compatible endpoints supported) touches only config. Embeddings default to local fastembed with no external dependency at inference time.
+**Pluggable LLM tiers.** `agent/llm.py` is a declarative provider registry over three wire protocols (Claude CLI subprocess, OpenAI chat/completions, Anthropic Messages API) — Claude, OpenAI, DeepSeek, Kimi, OpenRouter, local Ollama, or any OpenAI-compatible endpoint, all selected per tier in `agent/config/trading.toml` with keys read from env only. A trader tier (frontier model, the real edge) is separated from a flash tier (cheap model for dreaming and postmortems). Failures retry with backoff but never fall back to a different model — a trading system shouldn't swap brains mid-flight. Embeddings default to local fastembed with no external dependency at inference time.
 
-## Quickstart
-
-Prerequisites:
-- Python 3.12+
-- [Longbridge OpenAPI](https://open.longbridge.com) paper-trading credentials, plus the `longbridge` CLI
-- The `claude` CLI (used as the LLM backend)
+## Quickstart — one command
 
 ```bash
-# 1. Credentials — copy the template and fill in your paper-trading keys
-cp flint.env.example flint.env
-$EDITOR flint.env
-
-# 2. Memory subsystem deps (local vector store + embeddings)
-python3 -m venv .venv
-.venv/bin/pip install lancedb fastembed
-
-# 3. Initialize the database
-.venv/bin/python -m agent.db
-
-# 4. Dry run — simulates fills internally, places NO real orders
-FLINT_DRY_RUN=1 .venv/bin/python -m agent.daemon
-
-# 5. When you're ready to send real paper orders, flip the switch
-FLINT_DRY_RUN=0 .venv/bin/python -m agent.daemon
+git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flintrade && bash scripts/bootstrap.sh
 ```
+
+That's it. On a fresh Mac, `bootstrap.sh` sets up the venv, installs the `longbridge` CLI via Homebrew, initializes the database, checks your LLM provider, and runs a full dry-run smoke test (all seven loops, zero orders, zero LLM cost). It's idempotent and ends by printing exactly what to do next — get free [paper-trading credentials](https://open.longbridge.com), pick an LLM, watch a dry run, then flip `FLINT_DRY_RUN=0`.
+
+**Using an AI coding agent?** Paste this into Claude Code / any coding agent:
+
+> Clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade, run `bash scripts/bootstrap.sh`, then follow AGENTS.md.
+
+`AGENTS.md` gives an agent the full replication contract: setup, verification commands, config knobs, and the safety invariants it must not violate.
+
+### Choosing your LLM
+
+No hard dependency on any one vendor. The default is the local `claude` CLI (no API key needed if you have Claude Code); otherwise pick any provider in `agent/config/trading.toml [models]`:
+
+| provider | wire | key env |
+|---|---|---|
+| `claude-cli` (default) | Claude Code CLI | — |
+| `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
+| `openai` / `deepseek` / `moonshot` (Kimi) / `openrouter` | OpenAI chat/completions | `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / … |
+| `ollama` | local, no key | — |
+| `openai_compatible` | any compatible endpoint (`base_url` in config) | configurable |
+
+```bash
+.venv/bin/python -m agent.llm check   # verify resolution + keys, no cost
+.venv/bin/python -m agent.llm ping    # one real round-trip per tier
+```
+
+Two tiers: `trader` (decisions — use a frontier model) and `flash` (dreaming/postmortems — use the cheapest thing you trust). Deliberate design choice: **no automatic cross-model fallback** — if the configured model fails after retries, the agent WAITs instead of trading with a different brain.
 
 `FLINT_DRY_RUN=1` is the default posture in `flint.env.example` — the daemon runs its full decision loop and simulates fills without ever calling the broker. Only flip it to `0` once you've watched it run.
 

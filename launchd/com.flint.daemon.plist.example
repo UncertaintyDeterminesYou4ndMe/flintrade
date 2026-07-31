@@ -24,6 +24,12 @@
         <!-- SAFETY: "1" = dry-run (simulate fills, place NO orders). Flip to "0" deliberately. -->
         <key>FLINT_DRY_RUN</key><string>1</string>
     </dict>
+    <!-- launchd's default soft maxfiles (256) leaves no headroom; the daemon
+         watchdog restarts on fd pressure, but give it room to breathe. -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key><integer>4096</integer>
+    </dict>
     <key>StandardOutPath</key><string>/path/to/flintrade/logs/daemon.out</string>
     <key>StandardErrorPath</key><string>/path/to/flintrade/logs/daemon.err</string>
 </dict>

@@ -18,15 +18,18 @@ from __future__ import annotations
 
 import fcntl
 import os
+import resource
 import signal
 import sys
 import threading
+import time
 
 from agent.config import load_trading
 from agent.db import DB, FLINT_DIR
 
 _stop = threading.Event()
 _LOCK_FD = None  # 持有到进程退出
+_LAST_OK: dict[str, float] = {}  # loop name → 最近一次成功 run_once 的 monotonic 时刻(看门狗用)
 
 
 def _acquire_singleton() -> bool:
@@ -110,13 +113,48 @@ def _worker(name: str, factory, cadence: float) -> None:
         print(f"[{name}] 启动失败,该 loop 退出: {e!r}", file=sys.stderr, flush=True)
         return
     print(f"[daemon] ▶ {name} 每 {cadence}s", flush=True)
+    _LAST_OK[name] = time.monotonic()
     while not _stop.is_set():
         try:
             _run_thunk(name, thunk)
+            _LAST_OK[name] = time.monotonic()  # 只在成功迭代后打点
         except Exception as e:       # 单 loop 出错不拖垮其余
             print(f"[{name}] error: {e!r}", file=sys.stderr, flush=True)
         _stop.wait(cadence)          # 可被关停信号立即唤醒
     print(f"[daemon] ■ {name} 已停", flush=True)
+
+
+def _fd_usage() -> tuple[int, int]:
+    """(当前打开 fd 数, soft limit)。读不到时 used=-1。"""
+    soft, _hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    try:
+        used = len(os.listdir("/dev/fd"))
+    except OSError:
+        used = -1
+    return used, soft
+
+
+def _watchdog_check(loops: list[tuple]) -> str | None:
+    """自愈看门狗:返回致命原因字符串,健康则 None。
+
+    背景(2026-07-26 事故):sqlite 连接泄漏耗尽 fd 后,各 loop 每轮报错但进程
+    不死,launchd 的 KeepAlive 帮不上忙 —— 系统带病运行 5 天,没有任何交易。
+    对策:daemon 主线程盯两件事,任一触发就 os._exit 交给 launchd 重启:
+      1. 关键 loop 连续 max(6×cadence, 30min) 没有一次成功迭代(卡死/持续报错);
+      2. fd 用量超过 soft limit 的 90%(泄漏早期就重启,而不是等 EMFILE)。
+    """
+    now_m = time.monotonic()
+    for name, _factory, cadence in loops:
+        last = _LAST_OK.get(name)
+        if last is None:
+            continue  # 线程启动失败已单独打日志;不在这里判死刑
+        limit = max(6 * cadence, 1800)
+        if now_m - last > limit:
+            return f"loop '{name}' 已 {int(now_m - last)}s 无成功迭代(阈值 {int(limit)}s)"
+    used, soft = _fd_usage()
+    if used >= 0 and soft > 0 and used > soft * 0.9:
+        return f"fd 用量 {used}/{soft} 超过 90%(疑似泄漏)"
+    return None
 
 
 def _install_signals() -> None:
@@ -147,7 +185,8 @@ def main() -> int:
         return 1
 
     _install_signals()
-    DB(role="reader").beat(process="daemon")  # 总管自身心跳一记
+    with DB(role="reader") as db:
+        db.beat(process="daemon")  # 总管自身心跳一记
     loops = _loops()
     print(f"[daemon] Flint 单进程总管启动 · {len(loops)} loops", flush=True)
     threads = []
@@ -169,8 +208,22 @@ def main() -> int:
         _stop.wait(secs)
         _stop.set()
     else:
-        while not _stop.is_set():  # 主线程守着关停信号
+        last_wd = time.monotonic()
+        while not _stop.is_set():  # 主线程守着关停信号 + 每 30s 一次看门狗巡检
             _stop.wait(1.0)
+            if time.monotonic() - last_wd < 30:
+                continue
+            last_wd = time.monotonic()
+            reason = _watchdog_check(loops)
+            if reason:
+                print(f"[daemon] WATCHDOG: {reason} — 主动退出,交给 launchd 重启",
+                      file=sys.stderr, flush=True)
+                try:
+                    with DB(role="reader") as db:
+                        db.beat(process="watchdog", note=f"restart: {reason}"[:200])
+                except Exception:
+                    pass
+                os._exit(70)  # 不走优雅关停:卡死线程可能让 join 永远等下去
     # 给各 loop 一点时间收尾(它们在 _stop.wait 处会立即醒)
     for t in threads:
         t.join(timeout=10)

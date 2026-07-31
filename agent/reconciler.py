@@ -346,9 +346,21 @@ class Reconciler:
             time.sleep(poll)
 
 
+_INSTANCE: Reconciler | None = None
+
+
 def run_once() -> list[str]:
-    """模块级便捷入口:跑一轮并返回日志。"""
-    return Reconciler().run_once()
+    """模块级便捷入口:复用线程内单例。
+
+    每次调用都 new Reconciler() 会每 15s 泄漏一个 SQLite 连接:Python 3.13+
+    的 sqlite3.Connection 参与引用环,引用计数不回收,只有分代 GC 才关 fd —
+    安静期分配少、GC 不跑,连接堆满 launchd 默认 256 fd 上限(2026-07-26 停摆事故)。
+    daemon 只从 reconciler 线程调本函数,单例的线程亲和性成立。
+    """
+    global _INSTANCE
+    if _INSTANCE is None:
+        _INSTANCE = Reconciler()
+    return _INSTANCE.run_once()
 
 
 def run_forever():

@@ -36,9 +36,9 @@ def collect_data() -> dict:
         data = json.loads(out.stdout)
     except (ValueError, TypeError):
         data = {"error": "collect failed", "stderr": out.stderr[:500]}
-    db = DB(role="reader")
-    data["flint_positions"] = [dict(p) for p in db.open_positions()]
-    r = db.get_risk()
+    with DB(role="reader") as db:
+        data["flint_positions"] = [dict(p) for p in db.open_positions()]
+        r = db.get_risk()
     data["flint_risk"] = {"equity": r["equity"], "open_risk": r["open_risk"],
                           "halt": bool(r["halt"])} if r else {}
     # 唤醒回忆:先定向时间,再调取做梦合成的 lessons + 未过期 plans。
@@ -115,7 +115,12 @@ def to_intent(decision: dict) -> dict | None:
 
 
 def run_once() -> str:
-    db = DB(role="technical")
+    """入口:连接生命周期显式管理(不能依赖 GC 关闭,见 2026-07-26 fd 泄漏事故)。"""
+    with DB(role="technical") as db:
+        return _run_once(db)
+
+
+def _run_once(db: DB) -> str:
     db.beat(process="loop_technical")
     if db.is_halted():
         return "halted — 跳过技术面信号产出"

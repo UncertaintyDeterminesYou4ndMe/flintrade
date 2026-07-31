@@ -10,10 +10,28 @@ commission_per_share = 0.02
 # outside_rth 由 session 解析:Intraday→RTH_ONLY, Pre/Post→ANY_TIME, Overnight→OVERNIGHT
 
 [models]
-# 档位 → provider/model。现在全用 Claude;后期接 DeepSeek 等只改这里(业务代码不动)。
-# 接 DeepSeek 示例:flash = { provider="deepseek", model="deepseek-chat", base_url="https://api.deepseek.com", api_key_env="DEEPSEEK_API_KEY" }
-trader = { provider = "claude", model = "" }                  # 交易决策(真正的 edge):默认 Opus
-flash  = { provider = "claude", model = "claude-haiku-4-5" }  # dreaming / 唤醒简报:便宜的 Haiku(将来换 DeepSeek)
+# 档位 → provider/model。业务代码只认 tier(trader/flash),换厂商只改这里。
+# provider 注册表见 agent/llm.py PROVIDERS。内置(API key 一律从环境变量读,不落配置):
+#   claude-cli — 走本机 Claude Code CLI,免 API key(需要装 claude 命令)
+#   anthropic  — Anthropic Messages API      ($ANTHROPIC_API_KEY)
+#   openai     — OpenAI                       ($OPENAI_API_KEY)
+#   deepseek   — DeepSeek                     ($DEEPSEEK_API_KEY)
+#   moonshot   — Kimi / 月之暗面              ($MOONSHOT_API_KEY)
+#   openrouter — OpenRouter 聚合              ($OPENROUTER_API_KEY)
+#   ollama     — 本地 Ollama,无 key           (base_url 默认 http://localhost:11434/v1)
+#   openai_compatible — 任意兼容端,必须自带 base_url ($LLM_API_KEY 或自定义 api_key_env)
+# 示例:
+#   trader = { provider = "anthropic",  model = "claude-sonnet-5" }
+#   trader = { provider = "deepseek",   model = "deepseek-chat" }
+#   trader = { provider = "moonshot",   model = "kimi-k2-0711-preview" }
+#   trader = { provider = "ollama",     model = "qwen3:32b" }
+#   trader = { provider = "openai_compatible", model = "…", base_url = "https://…/v1", api_key_env = "MY_KEY" }
+# 可选字段:temperature / max_tokens / timeout_sec / extra_headers。
+# 自检:python -m agent.llm check(解析+key 就位);python -m agent.llm ping(真调一次)。
+# 教训:model 留空 = 跟随 claude CLI 的默认模型(用户改默认就跟着变,曾意外烧过 Fable)。
+# 交易系统的模型必须显式钉死,永远不留空;失败不跨模型 fallback —— 宁可 WAIT,不换脑子交易。
+trader = { provider = "claude-cli", model = "claude-sonnet-5" }   # 交易决策:Sonnet(经济档,显式钉死)
+flash  = { provider = "claude-cli", model = "claude-haiku-4-5" }  # dreaming / 复盘:Haiku(最便宜)
 
 [embeddings]
 # fastembed:进程内本地 ONNX 小模型(同那个 app 的 MiniLM/BGE/E5),零 API 成本。

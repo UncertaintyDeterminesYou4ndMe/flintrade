@@ -517,7 +517,11 @@ def recall(now_et: datetime | None = None) -> dict:
 
     返回的 dict 小而紧凑(会注入每次决策 prompt)。
     """
-    db = DB(role="reflect")
+    with DB(role="reflect") as db:  # 每个决策周期都调:必须异常安全地关闭
+        return _recall(db, now_et)
+
+
+def _recall(db: DB, now_et: datetime | None = None) -> dict:
     et = now_et or datetime.now(ET)
     today = et.strftime("%Y-%m-%d")
     ref_utc = et.astimezone(timezone.utc)
@@ -619,7 +623,6 @@ def recall(now_et: datetime | None = None) -> dict:
         except Exception:
             pass
 
-    db.close()
     return {"time_anchor": time_anchor, "lessons": lessons, "plans": plans, "stats": stats,
             "self_assessment": self_assessment}
 

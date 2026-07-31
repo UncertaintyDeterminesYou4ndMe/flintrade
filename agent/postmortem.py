@@ -227,7 +227,11 @@ def review_new(limit: int = 10) -> list[str]:
     没打过标,按 strategy 处理)。manual/test/outage-degraded 一律跳过 ——
     不进复盘,也就不会污染绩效结论。返回人类可读的日志行列表。
     """
-    db = DB(role="reflect")
+    with DB(role="reflect") as db:  # 显式生命周期:LLM 中途抛异常也不泄漏连接
+        return _review_new(db, limit)
+
+
+def _review_new(db: DB, limit: int) -> list[str]:
     rows = db.conn.execute(
         """SELECT t.* FROM trades t
            LEFT JOIN trade_reviews r ON r.trade_id = t.id
@@ -281,7 +285,6 @@ def review_new(limit: int = 10) -> list[str]:
             f"trade {ctx['trade_id']} ({ctx['symbol']}): exit_kind={metrics['exit_kind']} "
             f"pnl={ctx['pnl']} verdict={llm_fields.get('thesis_verdict')}"
         )
-    db.close()
     return lines
 
 

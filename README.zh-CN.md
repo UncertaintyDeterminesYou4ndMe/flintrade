@@ -43,33 +43,40 @@ flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模
 
 **自我复盘与校准。** `agent/postmortem.py` 用便宜档位（flash tier）的模型，对每一笔已平仓的策略交易做结构化复盘：论点对不对、入场出场时机怎么样、相对止损滑点多少。复盘 prompt 里强制了诚实性硬规则——样本量 n<10 的统计只能表述为初步观察，绝不能变成规则。agent 真实的战绩（样本数、胜率、净盈亏）由纯代码算出，并作为 `self_assessment` 注入每一次决策，模型没法悄悄忘记自己实际做得怎么样。
 
-**可插拔的 LLM 档位。** `agent/llm.py` 把交易档（trader tier，前沿模型，真正的 edge 所在）和 flash 档（便宜模型，用于做梦和复盘）分开，配置在 `agent/config/trading.toml`——换 provider（目前是 Claude，也支持 OpenAI 兼容端点）只需要改配置。Embedding 默认走本地 fastembed，推理时零外部依赖。
+**可插拔的 LLM 档位。** `agent/llm.py` 是一张声明式 provider 注册表，底下只有三种协议（Claude CLI 子进程、OpenAI chat/completions、Anthropic Messages API）——Claude、OpenAI、DeepSeek、Kimi、OpenRouter、本地 Ollama 或任意 OpenAI 兼容端，都在 `agent/config/trading.toml` 里按档位选择，key 只从环境变量读。交易档（trader，前沿模型，真正的 edge 所在）和 flash 档（便宜模型，做梦和复盘）分开。失败会退避重试，但绝不静默换模型——交易系统不该在半空中换脑子。Embedding 默认走本地 fastembed，推理时零外部依赖。
 
-## 快速开始
-
-前置条件：
-- Python 3.12+
-- [Longbridge OpenAPI](https://open.longbridge.com) 模拟盘（paper trading）凭据，以及 `longbridge` CLI
-- `claude` CLI（作为 LLM 后端）
+## 快速开始 —— 一条命令
 
 ```bash
-# 1. 凭据 —— 复制模板并填入你的模拟盘 key
-cp flint.env.example flint.env
-$EDITOR flint.env
-
-# 2. 记忆子系统依赖(本地向量库 + embedding)
-python3 -m venv .venv
-.venv/bin/pip install lancedb fastembed
-
-# 3. 初始化数据库
-.venv/bin/python -m agent.db
-
-# 4. 干跑 —— 内部模拟成交,不下任何真实订单
-FLINT_DRY_RUN=1 .venv/bin/python -m agent.daemon
-
-# 5. 确认无误后,再切到真实下单(仍是模拟盘,无真钱)
-FLINT_DRY_RUN=0 .venv/bin/python -m agent.daemon
+git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flintrade && bash scripts/bootstrap.sh
 ```
+
+就这一条。在一台全新的 Mac 上，`bootstrap.sh` 会建好 venv、装 `longbridge` CLI（Homebrew）、初始化数据库、检查 LLM provider，并跑一次完整的干跑冒烟测试（七个 loop 全过，不下单、不花 token、不需要任何凭据）。脚本幂等可重跑，结束时会按顺序打印接下来要做的事：申请免费的[模拟盘凭据](https://open.longbridge.com)、选 LLM、观察干跑，最后再把 `FLINT_DRY_RUN` 切成 `0`。
+
+**用 AI 编程助手？** 把这句话粘给 Claude Code / 任意 coding agent：
+
+> 克隆 https://github.com/UncertaintyDeterminesYou4ndMe/flintrade，运行 `bash scripts/bootstrap.sh`，然后按 AGENTS.md 走。
+
+`AGENTS.md` 是给 agent 看的完整复刻契约：安装、验证命令、配置旋钮、以及绝不能违反的安全不变量。
+
+### 选择你的 LLM
+
+不强依赖任何一家。默认走本机 `claude` CLI（有 Claude Code 就零配置）；想换，改 `agent/config/trading.toml [models]` 一行即可：
+
+| provider | 协议 | key 环境变量 |
+|---|---|---|
+| `claude-cli`（默认） | Claude Code CLI | 免 key |
+| `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
+| `openai` / `deepseek` / `moonshot`（Kimi）/ `openrouter` | OpenAI chat/completions | 各家对应 key |
+| `ollama` | 本地模型 | 免 key |
+| `openai_compatible` | 任意兼容端（配 `base_url`） | 自定义 |
+
+```bash
+.venv/bin/python -m agent.llm check   # 验证解析与 key 就位,零成本
+.venv/bin/python -m agent.llm ping    # 每档真调一次,验证端到端连通
+```
+
+两个档位：`trader`（交易决策，用前沿模型）、`flash`（做梦/复盘，用你信得过的最便宜的）。一个刻意的设计决定：**失败不做跨模型自动 fallback**——配置的模型重试后仍失败，agent 选择 WAIT，而不是换一颗脑子继续交易。
 
 `flint.env.example` 里默认就是 `FLINT_DRY_RUN=1`——daemon 会跑完整的决策流程并在内部模拟成交，从不真正调用 broker。只有在你看它跑过、确认没问题之后，才把它切成 `0`。
 

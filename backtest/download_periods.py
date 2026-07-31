@@ -26,7 +26,7 @@ END = "2026-04-21"
 
 def fetch(symbol, period, start, end):
     cmd = [
-        "longbridge", "kline-history", symbol,
+        "longbridge", "kline", "history", symbol,
         "--period", period,
         "--start", start, "--end", end,
         "--session", "all", "--format", "json",

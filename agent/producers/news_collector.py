@@ -192,7 +192,11 @@ def run_once() -> list[str]:
     一轮采集。心跳 → 逐标的拉取 → 新条目写 signal(命中关键词额外写 event)。
     返回每标的新增数量的日志行列表。单标的异常被隔离,不影响其余标的。
     """
-    db = DB(role="news")
+    with DB(role="news") as db:
+        return _run_once(db)
+
+
+def _run_once(db: DB) -> list[str]:
     db.beat(process="news_collector")
 
     symbols = load_trading()["universe"]["symbols"]

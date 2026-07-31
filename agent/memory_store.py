@@ -139,8 +139,8 @@ def index_new_trades() -> int:
     if not embeddings_ready():
         _log("嵌入后端不可用,index_new_trades 跳过")
         return 0
-    db = DB(role="reflect")
-    rows = db.conn.execute("SELECT * FROM trades WHERE pnl IS NOT NULL ORDER BY id").fetchall()
+    with DB(role="reflect") as db:  # Row 已物化,关闭连接后仍可用
+        rows = db.conn.execute("SELECT * FROM trades WHERE pnl IS NOT NULL ORDER BY id").fetchall()
     try:
         existing = _indexed_ref_ids(_connect(), "trade")
     except Exception:

@@ -30,11 +30,13 @@ ALL_SYMBOLS = MARKET_SYMBOLS + TRADE_SYMBOLS
 
 
 def fetch_klines(symbol, start_date, end_date, period=DEFAULT_PERIOD,
-                  adjust="forward_adjust"):
+                  adjust="forward"):
     """Fetch klines for a symbol in a date range. Defaults to forward-adjusted
-    prices (continuous across splits/dividends — required for clean backtests)."""
+    prices (continuous across splits/dividends — required for clean backtests).
+    Note: longbridge CLI 升级后子命令由 `kline-history` 改为 `kline history`,
+    --adjust 合法值由 forward_adjust/no_adjust 改为 forward/none。"""
     cmd = [
-        "longbridge", "kline-history", symbol,
+        "longbridge", "kline", "history", symbol,
         "--period", period,
         "--start", start_date,
         "--end", end_date,
@@ -56,41 +58,47 @@ def fetch_klines(symbol, start_date, end_date, period=DEFAULT_PERIOD,
 
 def download_symbol(symbol, start_date, end_date, period=DEFAULT_PERIOD,
                     existing_min=None, existing_max=None,
-                    adjust="forward_adjust"):
-    """Download all klines for a symbol, splitting into weekly chunks.
+                    adjust="forward"):
+    """Download all klines for a symbol, splitting into 3-day chunks.
+
+    分块大小:全时段(--session all 含 overnight)5m 一天约 288 根,单次请求上限
+    1000 根且 API 返回 newest-first——按周分块会静默截掉每周最早的天(曾导致
+    每块正好 1000 根、周头缺数据)。3 天 × 288 = 864 < 1000,安全。
 
     existing_min/max: YYYY-MM-DD string range already present in the local store.
-    Any week whose [s, e] range falls entirely inside [existing_min, existing_max]
+    Any chunk whose [s, e] range falls entirely inside [existing_min, existing_max]
     is skipped (treated as already-attempted; holidays/gaps inside that span
     are accepted as 'we already tried'). To force a re-pull, delete the file.
     """
+    CHUNK_DAYS = 3
     all_bars = []
     skipped = 0
     current = datetime.strptime(start_date, "%Y-%m-%d")
     end = datetime.strptime(end_date, "%Y-%m-%d")
 
     while current < end:
-        week_end = min(current + timedelta(days=6), end)
+        chunk_end = min(current + timedelta(days=CHUNK_DAYS - 1), end)
         s = current.strftime("%Y-%m-%d")
-        e = week_end.strftime("%Y-%m-%d")
+        e = chunk_end.strftime("%Y-%m-%d")
 
         if existing_min and existing_max and s >= existing_min and e <= existing_max:
             print(f"  {symbol} {s}~{e}: SKIP (within existing {existing_min}~{existing_max})")
             skipped += 1
-            current = week_end + timedelta(days=1)
+            current = chunk_end + timedelta(days=1)
             continue
 
         bars = fetch_klines(symbol, s, e, period=period, adjust=adjust)
         if bars:
             all_bars.extend(bars)
-            print(f"  {symbol} {s}~{e}: {len(bars)} bars")
+            truncated = " ⚠ TRUNCATED(=1000)" if len(bars) >= 1000 else ""
+            print(f"  {symbol} {s}~{e}: {len(bars)} bars{truncated}")
         else:
             print(f"  {symbol} {s}~{e}: 0 bars (market closed?)")
 
-        current = week_end + timedelta(days=1)
+        current = chunk_end + timedelta(days=1)
 
     if skipped:
-        print(f"  ({skipped} weeks skipped — API calls saved)")
+        print(f"  ({skipped} chunks skipped — API calls saved)")
     return all_bars
 
 
@@ -119,9 +127,9 @@ def main():
                         help="Output directory, default=backtest/data")
     parser.add_argument("--symbols", type=str, default=None,
                         help="Comma-separated symbols, default=all")
-    parser.add_argument("--adjust", type=str, default="forward_adjust",
-                        choices=["forward_adjust", "no_adjust"],
-                        help="Price adjustment (default forward_adjust — splits/dividends).")
+    parser.add_argument("--adjust", type=str, default="forward",
+                        choices=["forward", "none"],
+                        help="Price adjustment (default forward — splits/dividends).")
     args = parser.parse_args()
 
     end_date = args.end if args.end else datetime.now().strftime("%Y-%m-%d")
