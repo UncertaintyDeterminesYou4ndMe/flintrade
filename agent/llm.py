@@ -55,9 +55,12 @@ PROVIDERS: dict[str, dict] = {
     "deepseek":   {"wire": "openai",
                    "base_url": "https://api.deepseek.com",
                    "api_key_env": "DEEPSEEK_API_KEY"},
-    "moonshot":   {"wire": "openai",                    # Kimi
+    "moonshot":   {"wire": "openai",                    # Kimi 开放平台(按量计费)
                    "base_url": "https://api.moonshot.cn/v1",
                    "api_key_env": "MOONSHOT_API_KEY"},
+    "kimi-plan":  {"wire": "anthropic",                 # Kimi Code plan 的 sk-key 直连
+                   "base_url": "https://api.kimi.com/coding",  # Anthropic 兼容端
+                   "api_key_env": "KIMI_PLAN_API_KEY"},        # 可以用别人共享的 plan key,无需订阅/CLI
     "openrouter": {"wire": "openai",
                    "base_url": "https://openrouter.ai/api/v1",
                    "api_key_env": "OPENROUTER_API_KEY"},

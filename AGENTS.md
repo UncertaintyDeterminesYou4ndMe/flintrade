@@ -36,11 +36,14 @@ Do not make these silently for the user — surface them:
 2. **LLM provider**: default is the local `claude` CLI (zero config with
    Claude Code). Subscription plans ride their CLIs: `claude-cli` (Claude)
    and `kimi-cli` (Kimi Code plan, after `kimi login`) — no API key either
-   way. API-key vendors: edit `agent/config/trading.toml` `[models]`
-   (providers: `anthropic`, `openai`, `deepseek`, `moonshot`, `openrouter`,
-   `ollama`, `openai_compatible`) and export the matching key in
-   `flint.env`. Verify with `.venv/bin/python -m agent.llm check` (free)
-   and `.venv/bin/python -m agent.llm ping` (one paid round-trip).
+   way. A shared Kimi Code plan key works WITHOUT any subscription or CLI:
+   `kimi-plan` (Anthropic-compatible endpoint, `KIMI_PLAN_API_KEY`, models
+   `kimi-for-coding` / `kimi-for-coding-highspeed` / `k3`). API-key vendors:
+   edit `agent/config/trading.toml` `[models]` (providers: `anthropic`,
+   `openai`, `deepseek`, `moonshot`, `openrouter`, `ollama`,
+   `openai_compatible`) and export the matching key in `flint.env`. Verify
+   with `.venv/bin/python -m agent.llm check` (free) and
+   `.venv/bin/python -m agent.llm ping` (one paid round-trip).
 3. **Go live on the paper account**: set `FLINT_DRY_RUN=0` in `flint.env`
    (and in the launchd plist if installing it). Until then the daemon
    simulates fills internally and never calls the broker.

@@ -67,6 +67,7 @@ git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flint
 |---|---|---|
 | `claude-cli`（默认） | Claude Code CLI，吃 Claude 订阅 | 免 key |
 | `kimi-cli` | kimi CLI，吃 Kimi Code 订阅 plan（`kimi login`） | 免 key |
+| `kimi-plan` | Kimi Code plan key 直连（Anthropic 兼容端）——**用别人共享的 plan key 即可跑，不用自己订阅、不用装 CLI** | `KIMI_PLAN_API_KEY` |
 | `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
 | `openai` / `deepseek` / `moonshot`（Kimi 开放平台，按量计费）/ `openrouter` | OpenAI chat/completions | 各家对应 key |
 | `ollama` | 本地模型 | 免 key |

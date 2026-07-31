@@ -68,6 +68,7 @@ No hard dependency on any one vendor. The default is the local `claude` CLI (no 
 |---|---|---|
 | `claude-cli` (default) | Claude Code CLI — rides your Claude subscription | — |
 | `kimi-cli` | kimi CLI — rides your Kimi Code plan (`kimi login`) | — |
+| `kimi-plan` | Kimi Code plan key, direct API (Anthropic-compatible) — works with a key someone shares with you, no subscription or CLI needed | `KIMI_PLAN_API_KEY` |
 | `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
 | `openai` / `deepseek` / `moonshot` (Kimi open platform, pay-per-token) / `openrouter` | OpenAI chat/completions | `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / … |
 | `ollama` | local, no key | — |
