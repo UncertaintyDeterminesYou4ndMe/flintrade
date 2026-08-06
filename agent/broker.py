@@ -17,6 +17,7 @@ CLI patterns (see prompt.md "Execution" + scripts/collect.sh):
   longbridge order buy  SYMBOL QTY --price P --outside-rth FLAG -y --format json
   longbridge order sell SYMBOL QTY --price P --outside-rth FLAG -y --format json
       -> JSON containing an `order_id` on success
+  longbridge order cancel <order_id> -y --format json
   longbridge order executions --format json          # today's fills, newest first
   longbridge order detail <order_id> --format json   # has a `status` field
   longbridge assets --format json
@@ -194,6 +195,26 @@ class Broker:
     ) -> dict:
         """Place a sell order. Returns a normalized result dict."""
         return self._place("sell", symbol, qty, price, outside_rth, client_order_id)
+
+    def cancel(self, broker_order_id: str) -> dict:
+        """Cancel a resting order. Returns {'ok': bool, 'raw': ...}.
+
+        Used before placing a replacement exit order: the broker reserves the
+        position against a resting sell, so submitting a second sell for the
+        same shares is rejected as an oversell. (2026-07-31: flintrade-199 was
+        rejected because flintrade-198 was still resting.)
+
+        A cancel that fails because the order is already gone (filled/expired)
+        is not an error for the caller — the goal is "nothing resting", and
+        that goal is met. Callers should re-check state rather than trust ok.
+        """
+        if self.dry_run:
+            print(f"[DRY-RUN] CANCEL {broker_order_id}", file=sys.stderr)
+            return {"ok": True, "raw": {"dry_run": True}}
+        ok, payload = self._run_cli(
+            ["order", "cancel", str(broker_order_id), "-y", "--format", "json"]
+        )
+        return {"ok": bool(ok), "raw": payload}
 
     def order_detail(self, broker_order_id: str) -> dict:
         """Fetch order detail (works across days). Has a `status` field."""

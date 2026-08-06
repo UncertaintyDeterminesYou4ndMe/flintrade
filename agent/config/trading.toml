@@ -8,6 +8,10 @@ market  = ["QQQ.US","SPY.US"]    # regime 指标,不交易
 [execution]
 commission_per_share = 0.02
 # outside_rth 由 session 解析:Intraday→RTH_ONLY, Pre/Post→ANY_TIME, Overnight→OVERNIGHT
+# 开仓限价单挂超过此时限未成交 → Executor 撤单、intent 标 expired。
+# 论点在下单那一刻定价,挂得越久成交越可能发生在价格不利穿越限价的时刻(逆向选择);
+# 还会触发在途防线挡掉后续新 intent。0 或负数 = 关闭。平仓单不适用(撤了反而裸奔)。
+entry_order_ttl_min = 45
 
 [models]
 # 档位 → provider/model。业务代码只认 tier(trader/flash),换厂商只改这里。

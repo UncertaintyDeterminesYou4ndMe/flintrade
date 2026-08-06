@@ -9,8 +9,19 @@ Risk Monitor —— 独立熔断器 / kill-switch(系统的「前额叶」)。
 每轮 run_once():
   1. 日切重置:ET 日期跨日 → 重设 day_start_equity / day_realized_pnl,并清 halt
      (这是唯一自动清 halt 的地方:盘中熔断会一直 halt 到下一交易日)。
-  2. 回撤熔断:当日权益自 day_start 回撤 ≥ daily_loss_limit_pct → set_halt。
-  3. halt 时平仓:若刚熔断且 flatten_on_halt=true → 给每个持仓投 close 意图。
+  2. 逐仓止损:持仓现价越过 positions.stop → 投 close 意图(见下)。
+  3. 回撤熔断:当日权益自 day_start 回撤 ≥ daily_loss_limit_pct → set_halt。
+  4. halt 时平仓:若刚熔断且 flatten_on_halt=true → 给每个持仓投 close 意图。
+
+逐仓止损为什么在这里:在此之前 `positions.stop` 只是个咨询性字段 —— 唯一会
+看它的是 loop_technical,而那是**每 1800 秒一次的 LLM 调用**。一个 30 分钟
+才检查一次、还要等模型想明白的止损,不是止损。2026-07-31 AAPL 跳空那次,
+从消息落库到真正成交隔了 81 分钟。止损属于「不需要判断力的机械纪律」,应该
+由这个 10 秒的独立循环执行,和熔断器同级 —— 它本来就是为「Executor 卡死也
+要能自救」而存在的进程。
+
+它仍然遵守「自己从不下单」的边界:只投 close 意图,由 Executor 串行执行
+(风险闸门对退出永远放行,即使 halt)。
 
 角色边界(db.py 的 _WRITE_PERMS):risk_monitor 仅允许 {'halt','intents_submit'}。
   * set_halt(...)        —— 受 'halt' 许可保护,允许。✓
@@ -67,6 +78,80 @@ class RiskMonitor:
             f"[daily-reset] 新交易日 {today}: day_start_equity={equity}, "
             f"day_realized_pnl=0, halt 已清"
         )
+
+    # ── 逐仓止损守卫 ────────────────────────────────────────────────────────
+    def _exit_in_flight(self, symbol: str) -> bool:
+        """该标的是否已有平仓动作在路上:排队中的意图,或挂着的平仓单。
+
+        注意「在路上」只认这两样,**不认 status='approved' 的意图**。approved
+        的含义是「已下单、等成交」,但 Executor 之后再没回来改过它 —— 订单走到
+        终态(filled/rejected/expired)时只有 orders 行被更新,intents 行永远停在
+        approved。库里此刻就躺着十几条这样的孤儿(NVDA #230、AAPL #198/199/200…)。
+        把 approved 算作在途,等于给这些标的的止损守卫永久上锁 —— 修了等于没修。
+        订单是否真的活着,以 orders 表为准。
+        """
+        row = self.db.conn.execute(
+            """SELECT 1 FROM intents
+               WHERE symbol=? AND side IN ('close','flatten')
+                 AND status='pending' LIMIT 1""",
+            (symbol,),
+        ).fetchone()
+        if row:
+            return True
+        return self.db.conn.execute(
+            """SELECT 1 FROM orders
+               WHERE symbol=? AND side IN ('SELL','COVER')
+                 AND status IN ('submitted','partial') LIMIT 1""",
+            (symbol,),
+        ).fetchone() is not None
+
+    def _stop_guard(self, log: list[str]):
+        """现价越过 stop 的持仓 → 投 close 意图。"""
+        positions = [dict(p) for p in self.db.open_positions()]
+        guarded = [p for p in positions if p.get("stop") is not None]
+        if not guarded:
+            return
+
+        session = sess.current_session()
+        if session == "Closed":
+            return  # 无盘可交易,省下取价配额;开盘瞬间会立刻再查
+
+        from agent import quotes
+        # 一次 CLI 调用查完所有持仓。取价必须按会话取(顶层 last_done 在盘前/
+        # 夜盘会停在上一个 regular close 上,正是这个陈旧价让 07-31 那次
+        # 跳空在指标快照里完全看不见)。
+        prices = quotes.last_prices([p["symbol"] for p in guarded], session)
+
+        prio = int(load_risk()["priority"]["user"]) + 1
+        for pos in guarded:
+            price = prices.get(pos["symbol"])
+            if price is None:
+                continue  # 取不到价这轮就不判,下轮再说 —— 绝不拿陈旧价触发止损
+            stop = float(pos["stop"])
+            breached = price <= stop if pos["side"] == "long" else price >= stop
+            if not breached:
+                continue
+            if self._exit_in_flight(pos["symbol"]):
+                continue  # 已经在平了,别再投
+
+            # dedup_key 带分钟桶:UNIQUE 索引不区分意图状态,固定 key 一旦被拒
+            # 就永远无法重投。分钟桶让它每分钟最多重试一次 —— 既不刷屏,
+            # 又不会因为一次拒单就把止损永久哑掉。
+            bucket = datetime.now(ET).strftime("%Y%m%d%H%M")
+            iid = self.db.submit_intent(
+                source="risk_monitor",
+                priority=prio,
+                symbol=pos["symbol"],
+                side="close",
+                entry_hint=price,
+                confidence=100,
+                dedup_key=f"stop-{pos['id']}-{bucket}",
+                reason=(f"stop breached: {pos['side']} {pos['symbol']} "
+                        f"last {price} vs stop {stop} (session={session})"),
+            )
+            if iid is not None:
+                log.append(f"[stop-guard] {pos['symbol']} {pos['side']} 现价 {price} "
+                           f"越过止损 {stop} → 投 close 意图 #{iid}")
 
     # ── 回撤熔断 ────────────────────────────────────────────────────────────
     def _drawdown_breaker(self, log: list[str]) -> bool:
@@ -130,6 +215,11 @@ class RiskMonitor:
             self._daily_reset(log)
         except Exception as e:
             log.append(f"[error] daily_reset: {e!r}")
+
+        try:
+            self._stop_guard(log)
+        except Exception as e:
+            log.append(f"[error] stop_guard: {e!r}")
 
         just_halted = False
         try:

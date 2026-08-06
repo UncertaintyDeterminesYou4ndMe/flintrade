@@ -18,6 +18,7 @@ import time
 
 from agent.config import load_risk, load_trading
 from agent.db import DB, FLINTRADE_DIR
+from agent import session as sess
 
 # 复用技术面 loop 的解析/转换,保证 Executor 看到的 intent 形态完全一致。
 from agent.producers.loop_technical import parse_intent, to_intent
@@ -119,6 +120,11 @@ def _run_once(db: DB) -> str | list[str]:
     db.beat(process="loop_event")
     if db.is_halted():
         return "halted — 跳过舆情信号产出"
+    # 非交易时段不消费催化剂:游标不推进,事件留在队列里,开盘后由 LLM 判断新鲜度。
+    # 休市时产出的 intent 只会变成躺到下个开盘的挂单(见 loop_technical 同款注释)。
+    session = sess.current_session()
+    if not sess.is_tradeable(session):
+        return f"session={session} — 非交易时段,跳过"
 
     catalysts = gather_catalysts(db)
     if not catalysts:

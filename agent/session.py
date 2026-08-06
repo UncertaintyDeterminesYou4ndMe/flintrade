@@ -15,7 +15,8 @@ which the process launcher exports — nothing is hardcoded here.
 
 Public API:
   current_session()         -> str   (Pre/Intraday/Post/Overnight/Overnight-Pre/Closed)
-  outside_rth_for(session)  -> str   (RTH_ONLY/ANY_TIME/OVERNIGHT)
+  outside_rth_for(session, *, for_exit=False)
+                            -> str   (RTH_ONLY/ANY_TIME/OVERNIGHT)
   minutes_to_close(session) -> int | None
   is_tradeable(session)     -> bool
 """
@@ -110,18 +111,34 @@ def current_session() -> str:
         hhmm = et_now[:5]
 
         # --- Pre / Intraday / Post: match the live session windows ---
-        data = _get_session_json()
-        for sess in _us_sessions(data):
-            begin = _norm_hms(str(sess.get("open", "")))
-            end = _norm_hms(str(sess.get("close", "")))
-            if begin and end and begin <= et_now <= end:
-                return sess.get("session", "Open")
+        # Weekday-only: `longbridge trading session` returns a dateless static
+        # schedule, so on Sat/Sun the wall clock still "matches" a window.
+        # 2026-08-01 (Sat) that made current_session() say 'Intraday': the
+        # technical producer traded Friday's stale data and the resting order
+        # filled at Monday's open, 4 cents above its own stop. Weekends can
+        # never host Pre/Intraday/Post; only the Overnight branch below
+        # (Sun >= 20:00 ET belongs to Monday) may be live on a weekend.
+        if dow <= 5:
+            data = _get_session_json()
+            for sess in _us_sessions(data):
+                begin = _norm_hms(str(sess.get("open", "")))
+                end = _norm_hms(str(sess.get("close", "")))
+                if begin and end and begin <= et_now <= end:
+                    return sess.get("session", "Open")
 
-        # --- Overnight (20:00-03:50) — belongs to the NEXT trading day ---
+        # --- Overnight (20:00-04:00) — belongs to the NEXT trading day ---
         # Heuristic (same as run.sh): the holiday-aware path would need the
         # trading-days API; here we only require that the next trading day is a
         # weekday.
-        is_overnight_window = (hhmm >= "20:00") or (hhmm < "03:50")
+        #
+        # The upper bound is 04:00, not 03:50, so the 03:50-04:00 transition
+        # window falls INSIDE this branch and can be labelled 'Overnight-Pre'
+        # below. With a 03:50 bound that label was unreachable dead code:
+        # 03:5x matched neither the Pre window (opens 04:00) nor this one, so
+        # current_session() returned 'Closed' -> outside_rth RTH_ONLY -> the
+        # broker rejected the order. That is what killed flintrade-200 during the
+        # 2026-07-31 AAPL exit; three failed exits cost $45 of slippage.
+        is_overnight_window = (hhmm >= "20:00") or (hhmm < "04:00")
         if is_overnight_window:
             if hhmm >= "20:00":
                 next_dow = dow + 1 if dow < 7 else 1
@@ -137,11 +154,22 @@ def current_session() -> str:
         return "Closed"
 
 
-def outside_rth_for(session: str) -> str:
+def outside_rth_for(session: str, *, for_exit: bool = False) -> str:
     """Map a session to the broker's outside_rth flag.
 
     Mirrors run.sh's OUTSIDE_RTH case statement. US extended-hours orders MUST
     carry the correct outside_rth flag or the broker rejects them.
+
+    ``for_exit`` changes ONLY the unrecognised-session fallback. Entries fall
+    back to RTH_ONLY (if we cannot tell what session it is, do not reach into
+    extended hours to open risk). An exit must not inherit that caution: an
+    RTH_ONLY exit placed while the market is shut sits idle until the next
+    regular open, which is exactly the wrong behaviour for a stop-out. ANY_TIME
+    is the widest window the broker accepts (regular + pre + post).
+
+    Note ANY_TIME does NOT include the overnight session — the Overnight branch
+    below must stay session-accurate for exits too, so this is a fallback
+    change, not a blanket "exits are always ANY_TIME".
     """
     if session == "Intraday":
         return "RTH_ONLY"
@@ -149,7 +177,7 @@ def outside_rth_for(session: str) -> str:
         return "ANY_TIME"
     if session in ("Overnight", "Overnight-Pre"):
         return "OVERNIGHT"
-    return "RTH_ONLY"
+    return "ANY_TIME" if for_exit else "RTH_ONLY"
 
 
 def minutes_to_close(session: str) -> int | None:

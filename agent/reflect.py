@@ -631,8 +631,18 @@ def _recall(db: DB, now_et: datetime | None = None) -> dict:
 # 5. 调度:should_dream / run_once / run_forever
 # ─────────────────────────────────────────────────────────────────────────
 def should_dream(now_et: datetime | None = None) -> bool:
-    """睡眠窗口(market Closed)且今天还没做过梦 → True。"""
-    if current_session() != "Closed":
+    """睡眠窗口且今天还没做过梦 → True。
+
+    睡眠窗口 = Closed(周末/休市)、Overnight(夜盘,量小,做梦与交易线程
+    互不阻塞)或 Overnight-Pre(03:50-04:00 ET 死区)。"今天"按 ET 日历日,
+    夜盘跨午夜 → 稳态在每晚 00:00 ET 刚过触发,窗口近 4 小时。
+
+    历史教训:窗口曾只认 'Closed',而工作日唯一的 'Closed' 是被 session
+    误标的 03:50-04:00 死区(10min 窗口 × 600s 轮询,纯靠对齐);2026-08-05
+    的 Overnight-Pre 修复把死区改了名,这里被静默饿死(首个漏做梦日
+    2026-08-06)。睡眠判定不要绑在碰巧存在的 session 标签上。
+    """
+    if current_session() not in ("Closed", "Overnight", "Overnight-Pre"):
         return False
     today = _today_et(now_et)
     db = DB(role="reflect")

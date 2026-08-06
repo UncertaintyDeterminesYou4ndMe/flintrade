@@ -124,6 +124,11 @@ def _run_once(db: DB) -> str:
     db.beat(process="loop_technical")
     if db.is_halted():
         return "halted — 跳过技术面信号产出"
+    # 非交易时段(周末/休市)不采数据不调 LLM:此时指标全是上一交易日的陈旧值,
+    # 产出的 intent 会变成躺过周末的挂单(2026-08-01 周六的 flintrade-210 事故)。
+    session = sess.current_session()
+    if not sess.is_tradeable(session):
+        return f"session={session} — 非交易时段,跳过"
 
     data = collect_data()
     text = call_llm(data)

@@ -16,6 +16,7 @@ Reconciler(Phase 2)接管后会用 broker.assets 校准真实权益。
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 
 from agent.broker import Broker
 from agent.config import load_risk, load_trading
@@ -49,13 +50,118 @@ class Executor:
             return f"持有 {held['side']} {intent['symbol']},翻向需先平仓(close)再开(prompt 契约)"
         return None
 
+    # ── 撤在途单(仅退出路径)────────────────────────────────────────────
+    def _cancel_inflight(self, symbol: str, log: list[str]) -> bool:
+        """撤掉该标的所有在途单,为新的平仓单清场。返回「可以继续下单」。
+
+        券商会用挂着的卖单锁住持仓,所以第二张同向卖单会以「超卖」被拒 ——
+        2026-07-31 就是这样:flintrade-198 还挂着,flintrade-199 直接被拒,行情继续下跌。
+        平仓路径必须先清场再下单,否则改价追单永远追不上。
+
+        撤单与成交是赛跑:撤之前那一刻单子可能刚成交。所以撤完必须用
+        order_detail 复核,**绝不能凭撤单返回值就把本地订单标成 cancelled** ——
+        真成交了却标 cancelled,Reconciler 就不会再结算它(它只认
+        submitted/partial),账上持仓还在、券商已经空仓,静默撕裂。
+        复核发现已成交 → 保持 submitted 交给 Reconciler 结算,并返回 False
+        让本次平仓意图作废(仓已经在平了,不需要第二张单)。
+        """
+        proceed = True
+        for o in self.db.open_orders():
+            if o["symbol"] != symbol:
+                continue
+            coid, boid = o["client_order_id"], o["broker_order_id"]
+            if not boid:
+                # 只在本地建了行、没拿到券商单号 —— 券商侧无单可撤,本地标掉即可。
+                self.db.update_order(coid, status="cancelled")
+                continue
+
+            res = self.broker.cancel(boid)
+            detail = self.broker.order_detail(boid)
+            status = detail.get("status", "") or ""
+            try:
+                executed = int(detail.get("executed_quantity") or 0)
+            except (ValueError, TypeError):
+                executed = 0
+
+            if status == "Filled" or executed > 0:
+                # 撤单没赶上成交。留 submitted,Reconciler 会按实际成交量结算。
+                proceed = False
+                log.append(f"[cancel #{coid}] {symbol} {o['side']} 撤单前已成交"
+                           f"({status} executed={executed}),交给 Reconciler 结算")
+                continue
+
+            self.db.update_order(coid, status="cancelled")
+            log.append(f"[cancel #{coid}] {symbol} {o['side']} "
+                       f"{'已撤' if res.get('ok') else '撤单失败但券商侧无成交'}: {boid}")
+        return proceed
+
+    # ── 开仓挂单 TTL(安全网)─────────────────────────────────────────────
+    def _expire_stale_entries(self, log: list[str]) -> None:
+        """撤掉挂超过 TTL 未成交的开仓单,并把对应 intent 标 expired。
+
+        开仓限价单的论点在下单那一刻定价;挂得越久,成交越可能发生在价格
+        不利地穿过限价的时刻(逆向选择)。实例:flintrade-210 (NVDA) 2026-08-01
+        周六下单躺过整个周末,周一开盘在自己止损位上方 4 美分成交,还连带
+        让在途防线挡掉了 6 笔新 intent。平仓单不适用 TTL —— 挂着的平仓单由
+        risk_monitor 重触发、_cancel_inflight 清场,超时撤掉反而让持仓裸奔。
+
+        与 _cancel_inflight 同款竞态防线:撤单后必须 order_detail 复核,
+        已成交的留 submitted 交给 Reconciler 结算,绝不标 cancelled。
+        """
+        ttl_min = load_trading()["execution"].get("entry_order_ttl_min", 45)
+        if not ttl_min or ttl_min <= 0:
+            return
+        now = datetime.now(timezone.utc)
+        for o in self.db.open_orders():
+            if o["side"] not in ("BUY", "SHORT"):
+                continue
+            try:
+                created = datetime.fromisoformat(
+                    str(o["created_at"]).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            age_min = (now - created).total_seconds() / 60
+            if age_min < ttl_min:
+                continue
+
+            coid, boid = o["client_order_id"], o["broker_order_id"]
+            if boid:
+                self.broker.cancel(boid)
+                detail = self.broker.order_detail(boid)
+                status = detail.get("status", "") or ""
+                try:
+                    executed = int(detail.get("executed_quantity") or 0)
+                except (ValueError, TypeError):
+                    executed = 0
+                if status == "Filled" or executed > 0:
+                    log.append(f"[ttl #{coid}] {o['symbol']} {o['side']} 撤单前已成交"
+                               f"({status} executed={executed}),交给 Reconciler 结算")
+                    continue
+
+            self.db.update_order(coid, status="cancelled")
+            if o["intent_id"]:
+                self.db.decide_intent(
+                    o["intent_id"], "expired",
+                    reject_reason=f"开仓挂单 {int(age_min)}min 未成交 > TTL {ttl_min}min,已撤单")
+            log.append(f"[ttl #{coid}] {o['symbol']} {o['side']} 挂单 {int(age_min)}min "
+                       f"未成交 > TTL {ttl_min}min,已撤")
+
     # ── 下单 + 验单 ───────────────────────────────────────────────────────
-    def _execute(self, intent: dict, qty: int, is_exit: bool, positions: list[dict]):
+    def _execute(self, intent: dict, qty: int, is_exit: bool, positions: list[dict],
+                 log: list[str]):
         symbol = intent["symbol"]
         session = sess.current_session()
-        orth = sess.outside_rth_for(session)
+        # 退出路径用 for_exit:会话辨识不出来时回退 ANY_TIME 而不是 RTH_ONLY,
+        # 否则一张平仓单会静静躺到下一个常规开盘(见 session.outside_rth_for)。
+        orth = sess.outside_rth_for(session, for_exit=is_exit)
         price = intent.get("entry_hint")
         coid = f"flintrade-{intent['id']}"
+
+        if is_exit and not self._cancel_inflight(symbol, log):
+            # 在途单已经成交 = 这个仓正在被平,再下一张就是反向裸开。
+            self.db.decide_intent(intent["id"], "cancelled",
+                                  reject_reason="在途平仓单已成交,本意图作废")
+            return False, "在途平仓单已成交,跳过重复下单"
 
         # 决定 broker 方向与本地 action
         if is_exit:
@@ -74,9 +180,16 @@ class Executor:
         res = fn(symbol, qty, price, orth, client_order_id=coid)
 
         if not res.get("ok"):
+            # 落库券商的原始报错,不只是 status。2026-07-31 复盘时三张被拒的单
+            # 只留下 reject_reason="broker: Rejected",查不出到底为什么被拒 ——
+            # 没有原因就没法区分「标志位错了」和「超卖」,只能靠推。
+            raw = res.get("raw")
+            detail = str(raw)[:400] if raw is not None else ""
             self.db.update_order(coid, status="rejected", broker_order_id=res.get("broker_order_id"))
-            self.db.decide_intent(intent["id"], "rejected", reject_reason=f"broker: {res.get('status')}")
-            return False, f"broker 拒单/失败: {res.get('raw')}"
+            self.db.decide_intent(
+                intent["id"], "rejected",
+                reject_reason=f"broker[{res.get('status')}] orth={orth} sess={session}: {detail}")
+            return False, f"broker 拒单/失败 (orth={orth} sess={session}): {raw}"
 
         boid = res.get("broker_order_id")
         # 验单:dry-run 立即 Filled;live 限价单可能未即时成交 → 交给 Reconciler
@@ -119,6 +232,7 @@ class Executor:
     def process_once(self) -> list[str]:
         log = []
         self.db.beat(process="executor")
+        self._expire_stale_entries(log)
         session = sess.current_session()
         mins = sess.minutes_to_close(session)
 
@@ -166,7 +280,7 @@ class Executor:
                 log.append(f"[reject #{intent['id']} {intent['symbol']}] {verdict.reason}")
                 continue
 
-            ok, msg = self._execute(intent, verdict.qty, is_exit, positions)
+            ok, msg = self._execute(intent, verdict.qty, is_exit, positions, log)
             log.append(f"[{'fill' if ok else 'fail'} #{intent['id']}] {msg} | gate: {verdict.reason}")
 
         return log

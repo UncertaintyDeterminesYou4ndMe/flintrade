@@ -25,5 +25,11 @@ launchd/com.flintrade.daemon.plist
 web/node_modules/
 web/dist/
 
+# market-data payloads — 可由 backtest/download_*.py 按 manifest 重建,不入库
+backtest/data/
+backtest/data_1m/
+backtest/data_1h/*_US.json
+backtest/data_1h_2025/*_US.json
+
 # runtime state (created by bootstrap.sh)
 state.json

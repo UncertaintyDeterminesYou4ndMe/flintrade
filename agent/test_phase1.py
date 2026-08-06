@@ -77,7 +77,7 @@ print("=== Executor 端到端(dry-run) ===")
 # 确定性 session
 S.current_session = lambda: "Intraday"
 S.minutes_to_close = lambda s: 300
-S.outside_rth_for = lambda s: "RTH_ONLY"
+S.outside_rth_for = lambda s, *, for_exit=False: "RTH_ONLY"
 
 init_db()
 boot = DB(role="migrate")

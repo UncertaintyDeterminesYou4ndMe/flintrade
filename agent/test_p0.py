@@ -52,10 +52,51 @@ def wipe():
 
 init_db()
 
+# ─────────────────────────────────────────────────────────────────────────
+# FIX 6: session 周末守卫 —— CLI 时刻表不含日期,周六中午不能匹配成 Intraday。
+# 必须在下面全局 stub 掉 S.current_session 之前测(测的是真函数)。
+# ─────────────────────────────────────────────────────────────────────────
+print("=== FIX 6: session 周末守卫(周六不返回 Intraday)===")
+from datetime import datetime as _real_datetime  # noqa: E402
+
+_STATIC_SESSIONS = [{"market": "US", "sessions": [
+    {"session": "Pre", "open": "4:00:00.0", "close": "9:30:00.0"},
+    {"session": "Intraday", "open": "9:30:00.0", "close": "16:00:00.0"},
+    {"session": "Post", "open": "16:00:00.0", "close": "20:00:00.0"},
+]}]
+
+
+class _FakeDT(_real_datetime):
+    _now = None
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls._now
+
+
+_orig_dt, _orig_fetch = S.datetime, S._get_session_json
+S.datetime = _FakeDT
+S._get_session_json = lambda: _STATIC_SESSIONS
+
+_FakeDT._now = _real_datetime(2026, 8, 3, 12, 0, tzinfo=S.ET)   # 周一午间
+check("阳性对照:周一 12:00 ET → Intraday", S.current_session() == "Intraday",
+      f"got={S.current_session()}")
+_FakeDT._now = _real_datetime(2026, 8, 1, 12, 0, tzinfo=S.ET)   # 周六午间(flintrade-210 事故时刻)
+check("周六 12:00 ET → Closed(不再误判 Intraday)", S.current_session() == "Closed",
+      f"got={S.current_session()}")
+_FakeDT._now = _real_datetime(2026, 8, 2, 21, 0, tzinfo=S.ET)   # 周日晚(属周一的 Overnight)
+check("周日 21:00 ET → Overnight(周末守卫不误伤)", S.current_session() == "Overnight",
+      f"got={S.current_session()}")
+_FakeDT._now = _real_datetime(2026, 8, 1, 21, 0, tzinfo=S.ET)   # 周六晚(次日周日,无 Overnight)
+check("周六 21:00 ET → Closed", S.current_session() == "Closed",
+      f"got={S.current_session()}")
+
+S.datetime, S._get_session_json = _orig_dt, _orig_fetch
+
 # 确定性 session(照抄 test_phase1 的桩法)
 S.current_session = lambda: "Intraday"
 S.minutes_to_close = lambda s: 300
-S.outside_rth_for = lambda s: "RTH_ONLY"
+S.outside_rth_for = lambda s, *, for_exit=False: "RTH_ONLY"
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -220,6 +261,120 @@ check("计入在途敞口后 qty 严格收紧",
       v_with_inflight.approved and v_no_inflight.approved and v_with_inflight.qty < v_no_inflight.qty,
       f"no_inflight.qty={v_no_inflight.qty} with_inflight.qty={v_with_inflight.qty}")
 
+
+print("=== FIX 7: 开仓挂单 TTL 超时撤单(安全网)===")
+wipe()
+
+
+class BrokerCancelOk:
+    """撤单成功、复核无成交的桩(TTL 主路径)。"""
+    dry_run = False
+
+    def cancel(self, boid):
+        return {"ok": True}
+
+    def order_detail(self, boid):
+        return {"status": "Cancelled", "executed_quantity": 0}
+
+
+class BrokerCancelRace:
+    """撤单没赶上成交:复核发现已 Filled(竞态路径)。"""
+    dry_run = False
+
+    def cancel(self, boid):
+        return {"ok": False}
+
+    def order_detail(self, boid):
+        return {"status": "Filled", "executed_quantity": 10}
+
+
+prod = DB(role="technical")
+iid_stale = prod.submit_intent(source="technical", symbol="NVDA.US", side="long",
+                               entry_hint=200.75, stop=197.9, target=206.2,
+                               confidence=73, reason="weekend stale order")
+iid_fresh = prod.submit_intent(source="technical", symbol="GLD.US", side="long",
+                               entry_hint=375.0, stop=372.0, target=382.0,
+                               confidence=60, reason="fresh order")
+prod.close()
+dex = DB(role="executor")
+dex.decide_intent(iid_stale, "approved")   # 已下单待成交的 intent 状态
+dex.decide_intent(iid_fresh, "approved")
+dex.close()
+
+boot = DB(role="migrate")
+boot.create_order(client_order_id="flintrade-stale-1", symbol="NVDA.US", side="BUY",
+                  qty=11, price=200.75, outside_rth="RTH_ONLY", intent_id=iid_stale)
+boot.update_order("flintrade-stale-1", broker_order_id="STALEBOID-1")
+boot.conn.execute("UPDATE orders SET created_at='2026-08-01T16:01:24Z' "
+                  "WHERE client_order_id='flintrade-stale-1'")   # 回填成陈年挂单
+boot.create_order(client_order_id="flintrade-fresh-1", symbol="GLD.US", side="BUY",
+                  qty=10, price=375.0, outside_rth="RTH_ONLY", intent_id=iid_fresh)
+boot.update_order("flintrade-fresh-1", broker_order_id="FRESHBOID-1")
+boot.close()
+
+ex_ttl = Executor(broker=BrokerCancelOk())
+log_ttl = ex_ttl.process_once()
+
+reader = DB(role="reader")
+row_stale = reader.conn.execute(
+    "SELECT status FROM orders WHERE client_order_id='flintrade-stale-1'").fetchone()
+row_fresh = reader.conn.execute(
+    "SELECT status FROM orders WHERE client_order_id='flintrade-fresh-1'").fetchone()
+row_intent = reader.conn.execute(
+    "SELECT status, reject_reason FROM intents WHERE id=?", (iid_stale,)).fetchone()
+check("超时开仓单已撤(order → cancelled)", row_stale["status"] == "cancelled",
+      f"status={row_stale['status']} log={log_ttl}")
+check("对应 intent → expired 且注明 TTL", row_intent["status"] == "expired"
+      and "TTL" in (row_intent["reject_reason"] or ""),
+      f"intent={dict(row_intent)}")
+check("未超时挂单不受影响(仍 submitted)", row_fresh["status"] == "submitted",
+      f"status={row_fresh['status']}")
+
+print("=== FIX 7b: TTL 撤单竞态 —— 撤单前已成交则留给 Reconciler ===")
+boot = DB(role="migrate")
+boot.conn.execute("UPDATE orders SET created_at='2026-08-01T16:01:24Z' "
+                  "WHERE client_order_id='flintrade-fresh-1'")   # 把它也变陈年
+boot.close()
+
+ex_race = Executor(broker=BrokerCancelRace())
+log_race = ex_race.process_once()
+
+row_race = DB(role="reader").conn.execute(
+    "SELECT status FROM orders WHERE client_order_id='flintrade-fresh-1'").fetchone()
+intent_race = DB(role="reader").conn.execute(
+    "SELECT status FROM intents WHERE id=?", (iid_fresh,)).fetchone()
+check("竞态:已成交的单保持 submitted(交 Reconciler 结算)",
+      row_race["status"] == "submitted", f"status={row_race['status']} log={log_race}")
+check("竞态:intent 不被误标 expired", intent_race["status"] == "approved",
+      f"status={intent_race['status']}")
+
+print("=== FIX 8: 做梦调度认 Overnight-Pre 为睡眠窗口 ===")
+# 背景:Overnight-Pre 修复(03:50-04:00 ET 不再解析成 'Closed')让只认
+# 'Closed' 的 should_dream 在工作日被静默饿死(2026-08-06 首个漏做梦日)。
+import agent.reflect as R  # noqa: E402
+
+_orig_cs = R.current_session
+_kv = DB(role="migrate")
+_kv.kv_set("last_dream_date", "2000-01-01")
+_kv.close()
+
+R.current_session = lambda: "Overnight-Pre"
+check("Overnight-Pre + 今日未做梦 → 该做梦", R.should_dream() is True)
+R.current_session = lambda: "Overnight"
+check("Overnight(夜盘)→ 该做梦", R.should_dream() is True)
+R.current_session = lambda: "Pre"
+check("Pre(交易时段)→ 不做梦", R.should_dream() is False)
+R.current_session = lambda: "Intraday"
+check("Intraday(交易时段)→ 不做梦", R.should_dream() is False)
+R.current_session = lambda: "Closed"
+check("Closed(周末)→ 该做梦", R.should_dream() is True)
+
+_kv = DB(role="migrate")
+_kv.kv_set("last_dream_date", R._today_et(None))
+_kv.close()
+R.current_session = lambda: "Overnight-Pre"
+check("今天已做过梦 → 不重复做", R.should_dream() is False)
+R.current_session = _orig_cs
 
 print(f"\n{'='*40}\nPASS={len(PASS)}  FAIL={len(FAIL)}")
 if FAIL:
