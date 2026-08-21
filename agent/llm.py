@@ -21,14 +21,18 @@
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from agent.config import load_trading
 
@@ -37,6 +41,42 @@ _TRUTHY = {"1", "true", "yes"}
 
 def _dry() -> bool:
     return os.environ.get("FLINTRADE_LLM_DRY", "").strip().lower() in _TRUTHY
+
+
+# ── 调用留痕("model-visible means logged")────────────────────────────────
+# 不变量:凡真实到达模型的输入输出,必须能从日志逐字重建 —— 否则复盘一笔坏交易
+# 时无法知道模型当时到底看到了什么(新闻原文、注入了哪几条 lesson、prompt 版本)。
+# intents.reason/features 只是摘要,不满足这条。dry-run 没有真实调用,不落盘。
+# 每天一个 jsonl:llm_calls/YYYYMMDD.jsonl;超过 30 天自动清理(同 logs/ 的策略)。
+_LOG_DIR = Path(os.environ.get("FLINTRADE_LLM_LOG_DIR", "")
+                or Path(__file__).resolve().parent.parent / "llm_calls")
+_LOG_RETENTION_DAYS = 30
+_LOG_LOCK = threading.Lock()   # daemon 多线程共用本模块;跨进程靠 flock
+_purge_done = False
+
+
+def _purge_old_logs() -> None:
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=_LOG_RETENTION_DAYS)).strftime("%Y%m%d")
+    for p in _LOG_DIR.glob("*.jsonl"):
+        if p.stem.isdigit() and p.stem < cutoff:
+            p.unlink(missing_ok=True)
+
+
+def _log_call(record: dict) -> None:
+    """追加一行调用记录。留痕失败绝不打断交易路径:告警后继续。"""
+    global _purge_done
+    try:
+        _LOG_DIR.mkdir(parents=True, exist_ok=True)
+        if not _purge_done:
+            _purge_old_logs()
+            _purge_done = True
+        line = json.dumps(record, ensure_ascii=False) + "\n"
+        path = _LOG_DIR / (datetime.now(timezone.utc).strftime("%Y%m%d") + ".jsonl")
+        with _LOG_LOCK, open(path, "a", encoding="utf-8") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            f.write(line)
+    except OSError as e:
+        print(f"[llm] 调用留痕失败(忽略): {e}", file=sys.stderr)
 
 
 # ── provider 注册表(声明式;新增厂商只加一条) ────────────────────────────────
@@ -137,6 +177,22 @@ def resolve_tier(tier: str) -> dict:
     return merged
 
 
+# ── CLI 子进程环境洗白 ───────────────────────────────────────────────────────
+# 不变量:不把与子进程无关的凭据交给会运行"不受信输出"的进程。claude/kimi CLI
+# 跑的是外部模型,其输出/日志/崩溃转储都可能回显环境 —— Longbridge 凭据、其他
+# 厂商的 API key 对它们毫无用处,一律剔除;只放行该 CLI 自身鉴权所需的前缀。
+_SENSITIVE_MARKERS = ("KEY", "SECRET", "TOKEN", "PASSWORD")
+_CLI_ENV_ALLOW = {"claude": ("ANTHROPIC_", "CLAUDE_"),
+                  "kimi": ("KIMI_", "MOONSHOT_")}
+
+
+def _cli_env(bin_: str) -> dict[str, str]:
+    allow = _CLI_ENV_ALLOW.get(bin_, ())
+    return {k: v for k, v in os.environ.items()
+            if not any(m in k.upper() for m in _SENSITIVE_MARKERS)
+            or (allow and k.upper().startswith(allow))}
+
+
 def _complete_cli(user_prompt: str, system_prompt: str | None, cfg: dict,
                   max_budget_usd: float) -> str:
     """订阅制 provider 走本机 agent CLI 子进程 —— CLI 自己管 OAuth/plan 计费。
@@ -168,6 +224,7 @@ def _complete_cli(user_prompt: str, system_prompt: str | None, cfg: dict,
         return '{"action":"WAIT","reasoning":"[llm dry-run]"}'
     try:
         res = subprocess.run(args, capture_output=True, text=True,
+                             env=_cli_env(bin_),
                              timeout=int(cfg.get("timeout_sec", 300)))
         out = res.stdout
         if bin_ == "kimi":  # 洗掉 kimi -p 的装饰:行首圆点、尾部 resume 提示
@@ -233,20 +290,35 @@ def _complete_anthropic(user_prompt: str, system_prompt: str | None, cfg: dict) 
 
 
 def complete(user_prompt: str, *, system_prompt: str | None = None,
-             tier: str = "trader", max_budget_usd: float = 1.5) -> str:
+             tier: str = "trader", max_budget_usd: float = 1.5,
+             tag: str | None = None) -> str:
     """按档位补全。tier ∈ {trader, flash, ...}(见 trading.toml [models])。
 
     失败语义:重试耗尽后返回 ""。调用方把空串当解析失败 → WAIT(不交易)。
+    tag:调用方自述的用途标签(如 "technical:NVDA"),只用于留痕检索。
     """
     cfg = resolve_tier(tier)
     wire = cfg["wire"]
+    t0 = time.monotonic()
     if wire == "cli":
-        return _complete_cli(user_prompt, system_prompt, cfg, max_budget_usd)
-    if wire == "openai":
-        return _complete_openai(user_prompt, system_prompt, cfg)
-    if wire == "anthropic":
-        return _complete_anthropic(user_prompt, system_prompt, cfg)
-    raise ValueError(f"未知 wire: {wire!r}")
+        out = _complete_cli(user_prompt, system_prompt, cfg, max_budget_usd)
+    elif wire == "openai":
+        out = _complete_openai(user_prompt, system_prompt, cfg)
+    elif wire == "anthropic":
+        out = _complete_anthropic(user_prompt, system_prompt, cfg)
+    else:
+        raise ValueError(f"未知 wire: {wire!r}")
+    if not _dry():
+        _log_call({
+            "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "tag": tag, "tier": tier, "provider": cfg["provider"],
+            "model": cfg.get("model", ""), "wire": wire,
+            "duration_ms": int((time.monotonic() - t0) * 1000),
+            "ok": bool(out),
+            "system_prompt": system_prompt, "user_prompt": user_prompt,
+            "response": out,
+        })
+    return out
 
 
 # ── embedding(本地 Ollama 优先)──────────────────────────────────────────

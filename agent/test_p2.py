@@ -10,6 +10,7 @@ import sqlite3
 import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 # 强制临时 db + dry-run(在 import db 前设好 env)
 os.environ.setdefault("FLINTRADE_DB", os.path.join(tempfile.gettempdir(), "flintrade_p2_test.db"))
@@ -294,6 +295,59 @@ check("recent trade_reviews block present (table has rows)",
       "RECENT TRADE POSTMORTEMS" in prompt and "L1" in prompt)
 
 db_reader.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# 9. plans 观察仓:被挡 intent 喂入做梦 prompt → 梦产出 plan → 写库 → recall
+# ─────────────────────────────────────────────────────────────────────────
+print("=== plans watchlist(blocked intents → dream → memory_plans → recall)===")
+
+# 种一条被时机性因素挡下的开仓 intent
+seed_db.conn.execute(
+    """INSERT INTO intents(source,priority,symbol,side,entry_hint,stop,confidence,
+                           reason,status,reject_reason,created_at)
+       VALUES('technical',10,'NVDA.US','short',220.0,224.0,66,
+              'BLOCKED-THESIS-MARKER','rejected','no-revenge 冷却中(NVDA.US 还剩 ~41min)',?)""",
+    (now(),),
+)
+
+db_reader = DB(role="reflect")
+blocked = reflect._blocked_intents(db_reader)
+check("_blocked_intents picks up rejected entry intent",
+      any(b["symbol"] == "NVDA.US" and "冷却" in (b["blocked_by"] or "") for b in blocked),
+      f"got={blocked}")
+prompt2 = reflect.build_dream_prompt([], [], "2026-07-14", None, blocked)
+check("BLOCKED INTENTS block present in dream prompt",
+      "RECENTLY BLOCKED INTENTS" in prompt2 and "BLOCKED-THESIS-MARKER" in prompt2)
+check("WATCHLIST semantics present in dream prompt", "WATCHLIST" in prompt2)
+db_reader.close()
+
+# 做梦(canned)产出 1 lesson + 1 plan → 写库。digest 重定向到临时目录,
+# 避免测试覆盖真实 logs/dream-<today>.md。
+_orig_dream_dir = reflect.DREAM_LOG_DIR
+reflect.DREAM_LOG_DIR = Path(tempfile.mkdtemp()) / "dream_logs"
+reflect.set_canned_llm_response(
+    '```json\n{"lessons":[{"text":"canned lesson","confidence":0.7,"evidence":[1],'
+    '"tags":{}}],"plans":[{"text":"re-check NVDA short below 220 - cooldown-blocked",'
+    '"expires_at":"2099-01-01","tags":{"symbol":"NVDA.US"}}]}\n```'
+)
+syn = reflect.synthesize_lessons()
+reflect.set_canned_llm_response(None)
+reflect.DREAM_LOG_DIR = _orig_dream_dir
+check("synthesize parsed canned dream", syn["parsed"] and syn["lessons"] == 1, f"got={syn}")
+check("plan written", syn["plans"] == 1, f"got={syn}")
+
+db_reader = DB(role="reflect")
+prow = db_reader.conn.execute(
+    "SELECT * FROM memory_plans WHERE status='active'").fetchone()
+check("memory_plans row active with expiry",
+      prow is not None and prow["expires_at"] == "2099-01-01",
+      f"got={dict(prow) if prow else None}")
+rec = reflect._recall(db_reader)
+check("recall surfaces unexpired plan",
+      any("NVDA" in p["text"] for p in rec["plans"]), f"got={rec['plans']}")
+db_reader.close()
+
 seed_db.close()
 db_ex.close()
 

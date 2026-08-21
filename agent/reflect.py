@@ -246,6 +246,32 @@ def _recent_closed_with_reasons(db: DB, limit: int = 40) -> list[dict]:
     return out
 
 
+def _blocked_intents(db: DB, limit: int = 15, days: int = 3) -> list[dict]:
+    """近几天被挡下的开仓 intent(rejected/expired,非平仓类),喂给做梦 LLM 当
+    观察仓素材。被*时机性*因素(冷却/黑窗/在途重复/限额已满)挡下的 thesis
+    并没有被证伪 —— 它们是 plans(观察仓/待建仓)的天然候选。此前 plans 从
+    上线起零产出,根因就是 prompt 只喂历史成交、却要求它编未来日历。"""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = db.conn.execute(
+        """SELECT symbol, side, entry_hint, stop, target, confidence,
+                  reject_reason, reason, created_at
+           FROM intents
+           WHERE status IN ('rejected', 'expired') AND side IN ('long', 'short')
+             AND created_at >= ?
+           ORDER BY id DESC LIMIT ?""",
+        (cutoff, limit),
+    ).fetchall()
+    out = []
+    for r in rows:
+        out.append({
+            "symbol": r["symbol"], "side": r["side"], "entry_hint": r["entry_hint"],
+            "stop": r["stop"], "target": r["target"], "confidence": r["confidence"],
+            "blocked_by": r["reject_reason"], "at": r["created_at"],
+            "thesis": (r["reason"] or "")[:200],
+        })
+    return out
+
+
 def _recent_reviews(db: DB, limit: int = 15) -> list[dict]:
     """近期逐笔复盘(postmortem 产物),压缩喂给做梦 LLM:symbol/verdict/grades/lesson。"""
     rows = db.conn.execute(
@@ -273,7 +299,8 @@ HARD_RULES = (
 
 
 def build_dream_prompt(agg_rows: list[dict], trades: list[dict], today_et: str,
-                       reviews: list[dict] | None = None) -> str:
+                       reviews: list[dict] | None = None,
+                       blocked: list[dict] | None = None) -> str:
     """构造给 Haiku 的「做梦」提示。要求 REWRITE(非 append)<=20 条 lessons + plans。"""
     reviews_block = ""
     if reviews:
@@ -281,6 +308,12 @@ def build_dream_prompt(agg_rows: list[dict], trades: list[dict], today_et: str,
 
 3. RECENT TRADE POSTMORTEMS — per-trade hindsight verdicts from the postmortem layer (symbol, thesis_verdict, entry_grade, exit_grade, one-line lesson). These are already-distilled per-trade judgments; use them to corroborate or challenge patterns you see in the raw trades above.
 {json.dumps(reviews, ensure_ascii=False)}"""
+    blocked_block = ""
+    if blocked:
+        blocked_block = f"""
+
+4. RECENTLY BLOCKED INTENTS — trade hypotheses from the last few days that the risk gate rejected or that expired unfilled, with the blocking reason. A thesis blocked for a *temporal* reason (cooldown, session blackout, duplicate in-flight order, exposure cap full) was NOT invalidated — it may still be a live setup worth revisiting. A thesis blocked on quality grounds (volume floor, invalid stop) usually is not.
+{json.dumps(blocked, ensure_ascii=False)}"""
 
     return f"""You are the memory-consolidation ("dreaming") layer of an autonomous short-term US-equities paper-trading agent. The market is CLOSED; this is the agent's sleep. Your job is to DISTILL raw trade history into a small, durable, reusable memory — like a human consolidating the day into long-term memory.
 
@@ -292,7 +325,7 @@ You are given two inputs:
 {json.dumps(agg_rows, ensure_ascii=False)}
 
 2. RECENT CLOSED TRADES with the trader's own reasoning text (these reasons are rich — they already contain the trader's reflections). Use them to find patterns, mistakes, and recurring setups.
-{json.dumps(trades, ensure_ascii=False)}{reviews_block}
+{json.dumps(trades, ensure_ascii=False)}{reviews_block}{blocked_block}
 
 Produce a COMPLETE REWRITE of the agent's memory (NOT an append). This is compression, not accumulation. Output AT MOST {MAX_LESSONS} durable lessons. Each lesson must be:
   - durable & semantic (NOT date-bound) — a reusable rule, not "today I did X";
@@ -300,11 +333,11 @@ Produce a COMPLETE REWRITE of the agent's memory (NOT an append). This is compre
   - quantified where the stats support it (cite n, win_rate, pl_ratio);
   - assigned a confidence 0.0-1.0 reflecting sample size and consistency.
 
-Separately, extract any DATED, EPISODIC plans (things to watch on a specific future date — earnings, macro events, "revisit X after Y"). Each plan needs an expires_at date (YYYY-MM-DD); it will be auto-dropped once that date passes.
+Separately, produce a small WATCHLIST of plans — episodic, expiring notes about concrete setups worth revisiting on waking, NOT durable rules. Source them from: (a) BLOCKED INTENTS whose thesis was stopped by a temporal factor and may still be live; (b) setups the trader mentioned in reasoning but did not take; (c) any explicitly dated catalyst that appears in the inputs. Each plan states the condition to re-check (e.g. "re-check NVDA short below 220 — blocked by cooldown, thesis not invalidated") plus tags with the symbol, and an expires_at date (YYYY-MM-DD, typically 1-3 trading days out — a stale watchlist is noise; it is auto-dropped after that date).
 
 Respond with ONE fenced ```json block, exactly this shape, nothing else:
 ```json
-{{"lessons":[{{"text":"...","confidence":0.0,"evidence":[1,2],"tags":{{"symbol":"NVDA.US","session":"Intraday","setup":"technical"}}}}],"plans":[{{"text":"watch NVDA earnings 6/12","expires_at":"2026-06-13","tags":{{"symbol":"NVDA.US"}}}}]}}
+{{"lessons":[{{"text":"...","confidence":0.0,"evidence":[1,2],"tags":{{"symbol":"NVDA.US","session":"Intraday","setup":"technical"}}}}],"plans":[{{"text":"re-check NVDA short below 220 — cooldown-blocked, thesis not invalidated","expires_at":"2026-06-13","tags":{{"symbol":"NVDA.US"}}}}]}}
 ```
 If there is no evidence for plans, return an empty plans list. Do not exceed {MAX_LESSONS} lessons.
 
@@ -316,7 +349,8 @@ def _call_dream_llm(prompt: str) -> str:
     if _CANNED_LLM_RESPONSE is not None:
         return _CANNED_LLM_RESPONSE
     from agent import llm
-    return llm.complete(prompt, tier="flash", max_budget_usd=float(DREAM_BUDGET_USD))
+    return llm.complete(prompt, tier="flash", max_budget_usd=float(DREAM_BUDGET_USD),
+                        tag="reflect:dream")
 
 
 def _parse_dream(text: str) -> dict | None:
@@ -365,9 +399,10 @@ def synthesize_lessons(now_et: datetime | None = None) -> dict:
     agg_rows = _agg_summary(db)
     trades = _recent_closed_with_reasons(db)
     reviews = _recent_reviews(db)
+    blocked = _blocked_intents(db)
     today = _today_et(now_et)
 
-    prompt = build_dream_prompt(agg_rows, trades, today, reviews)
+    prompt = build_dream_prompt(agg_rows, trades, today, reviews, blocked)
     text = _call_dream_llm(prompt)
     parsed = _parse_dream(text)
     if parsed is None:

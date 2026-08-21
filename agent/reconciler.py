@@ -24,6 +24,7 @@ decide_intent —— 那是 Executor 的权力)。所以这里只结算成交,�
 """
 from __future__ import annotations
 
+import json
 import time
 
 from agent.broker import Broker
@@ -131,6 +132,24 @@ class Reconciler:
         # 时才 add_signal,避免同一个未变化的漂移每轮都刷一条(31,606 条假信号的成因)。
         self._last_drift: dict[str, int] = {}
 
+    # ── intent 终态回写 ─────────────────────────────────────────────────────
+    def _finish_intent(self, intent_id, status: str, reason: str | None = None):
+        """订单到终态时把对应 intent 一并收尾;仅覆盖 approved(不碰其他状态)。
+
+        executor 对「已下单未成交」的裁决是 approved;订单之后的命运
+        (filled/expired/rejected/cancelled)由这里的延迟结算路径知晓,所以
+        收尾也必须发生在这里 —— 否则 intent 永远停在 approved(2026-08 复盘:
+        NVDA #230、AAPL #198/199/200 等十几条孤儿,险些把止损守卫的在途判断
+        永久锁死)。只动 approved 是幂等防线:pending 还没轮到 executor,
+        已终态的不重复改。
+        """
+        if not intent_id:
+            return
+        row = self.db.conn.execute(
+            "SELECT status FROM intents WHERE id=?", (intent_id,)).fetchone()
+        if row and row["status"] == "approved":
+            self.db.decide_intent(intent_id, status, reject_reason=reason)
+
     # ── 职责 1:结算挂单成交 ────────────────────────────────────────────────
     def _settle_pending(self) -> list[str]:
         from agent import settle  # 局部 import,与 executor 同口径会计
@@ -159,6 +178,10 @@ class Reconciler:
                 if terminal:
                     # 终态无成交:标记订单状态,移出 open_orders,停止每轮重复查询
                     self.db.update_order(coid, status=(status.lower() or "expired"))
+                    istatus = ("rejected" if "Reject" in status
+                               else "cancelled" if "Cancel" in status else "expired")
+                    self._finish_intent(order["intent_id"], istatus,
+                                        reason=f"order {status or 'terminal'} 无成交")
                     log.append(f"[order-cleanup #{coid}] {order['symbol']} {order['side']} "
                                f"{status or 'terminal'} 无成交,清理")
                 continue  # 否则仍在工作(New/WaitToNew),下轮再看
@@ -170,6 +193,7 @@ class Reconciler:
             ).fetchone()
             if already:
                 self.db.update_order(coid, status="filled")
+                self._finish_intent(order["intent_id"], "filled")
                 log.append(f"[settle-skip #{coid}] 已结算过(boid={boid}),防重跳过")
                 continue
 
@@ -186,6 +210,10 @@ class Reconciler:
                     "SELECT * FROM intents WHERE id=?", (order["intent_id"],)
                 ).fetchone()
                 intent = dict(intent_row) if intent_row else {}
+                try:
+                    feats = json.loads(intent.get("features") or "{}")
+                except (ValueError, TypeError):
+                    feats = {}
                 settle.settle_open(
                     self.db,
                     symbol=order["symbol"],
@@ -194,12 +222,14 @@ class Reconciler:
                     fill_price=fill_price,
                     stop=intent.get("stop"),
                     target=intent.get("target"),
+                    target2=feats.get("target2") if isinstance(feats, dict) else None,
                     commission_per_share=self.commission,
                     source=intent.get("source"),
                     intent_id=order["intent_id"],
                     broker_order_id=boid,
                     reason=intent.get("reason"),
                 )
+                self._finish_intent(order["intent_id"], "filled")
                 log.append(
                     f"[settle-open #{coid}] {side} {qty} {order['symbol']} @ {fill_price}"
                 )
@@ -224,6 +254,7 @@ class Reconciler:
                     broker_order_id=boid,
                     reason=(intent_reason or "reconciled close"),
                 )
+                self._finish_intent(order["intent_id"], "filled")
                 log.append(
                     f"[settle-close #{coid}] {side} {qty} {order['symbol']} @ {fill_price}, pnl={pnl}"
                 )

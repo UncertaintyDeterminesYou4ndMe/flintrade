@@ -79,6 +79,10 @@ def _mk_news_collector():
     from agent.producers import news_collector
     return news_collector.run_once
 
+def _mk_invariants():
+    from agent import invariants
+    return invariants.run_once
+
 
 def _loops() -> list[tuple]:
     """(name, factory, cadence_sec)。cadence 现读配置,可热调。"""
@@ -91,6 +95,7 @@ def _loops() -> list[tuple]:
         ("loop_event",     _mk_loop_event,     c.get("event_loop_sec", 60)),
         ("news_collector", _mk_news_collector, c.get("news_poll_sec", 300)),
         ("reflect",        _mk_reflect,        c.get("reflect_check_sec", 600)),
+        ("invariants",     _mk_invariants,     c.get("invariants_check_sec", 600)),
     ]
 
 

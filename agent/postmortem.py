@@ -160,7 +160,7 @@ def _call_review_llm(prompt: str) -> str:
     if _CANNED_LLM_RESPONSE is not None:
         return _CANNED_LLM_RESPONSE
     from agent import llm
-    return llm.complete(prompt, tier="flash", max_budget_usd=0.30)
+    return llm.complete(prompt, tier="flash", max_budget_usd=0.30, tag="postmortem")
 
 
 def _parse_review(text: str) -> dict | None:

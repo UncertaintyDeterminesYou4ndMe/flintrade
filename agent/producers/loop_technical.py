@@ -14,7 +14,7 @@ import re
 import subprocess
 import time
 
-from agent.config import load_risk, load_trading
+from agent.config import load_risk, load_strategies, load_trading
 from agent.db import DB, FLINTRADE_DIR
 from agent import session as sess
 
@@ -36,6 +36,9 @@ def collect_data() -> dict:
         data = json.loads(out.stdout)
     except (ValueError, TypeError):
         data = {"error": "collect failed", "stderr": out.stderr[:500]}
+    # 策略播放手册条款(单一真相 strategies.toml)。prompt 是通用规则,
+    # 「哪些票绑定哪套打法」只在这份数据里 —— 加新手册不改 prompt。
+    data["playbooks"] = load_strategies().get("playbooks") or {}
     with DB(role="reader") as db:
         data["flintrade_positions"] = [dict(p) for p in db.open_positions()]
         r = db.get_risk()
@@ -70,7 +73,8 @@ def call_llm(data: dict) -> str:
     """Arena:无工具的纯分析调用。走 llm 路由(trader 档),provider 可后期切换。"""
     from agent import llm
     return llm.complete(json.dumps(data, ensure_ascii=False),
-                        system_prompt=PROMPT.read_text(), tier="trader")
+                        system_prompt=PROMPT.read_text(), tier="trader",
+                        tag="producer:technical")
 
 
 def parse_intent(text: str) -> dict | None:
@@ -102,6 +106,8 @@ def to_intent(decision: dict) -> dict | None:
     feats = {}
     if decision.get("volume_ratio") is not None:
         feats["volume_ratio"] = decision["volume_ratio"]
+    if isinstance(decision.get("target2"), (int, float)):
+        feats["target2"] = decision["target2"]  # 分批止盈第二目标,executor 落进 position
     return {
         "symbol": decision["symbol"],
         "side": side,
@@ -138,6 +144,17 @@ def _run_once(db: DB) -> str:
     intent = to_intent(decision)
     if not intent:
         return f"WAIT — {decision.get('reasoning','')[:80]}"
+
+    # 把 h4 证据从采集数据(不是 LLM 的自述)如实附进 features —— risk_gate 对
+    # binding 手册标的据此机械放行/拒绝。找不到指标块就不附,gate 自会拒。
+    ind = next((i for i in (data.get("indicators") or [])
+                if isinstance(i, dict) and i.get("symbol") == intent["symbol"]), None)
+    h4 = (ind or {}).get("h4")
+    if isinstance(h4, dict):
+        feats = intent.get("features") or {}
+        feats["h4_confluence"] = bool(h4.get("confluence"))
+        feats["h4_trend_ok"] = bool(h4.get("trend_ok"))
+        intent["features"] = feats
 
     prio = load_risk()["priority"]["technical"]
     # 同一周期内同票去重(executor 轮询快于本 loop,正常不会堆积)

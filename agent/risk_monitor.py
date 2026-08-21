@@ -38,7 +38,7 @@ import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from agent.config import load_risk, load_trading
+from agent.config import load_risk, load_trading, playbook_for
 from agent.db import DB, now
 from agent import session as sess
 
@@ -105,11 +105,23 @@ class RiskMonitor:
             (symbol,),
         ).fetchone() is not None
 
-    def _stop_guard(self, log: list[str]):
-        """现价越过 stop 的持仓 → 投 close 意图。"""
+    def _position_guards(self, log: list[str]):
+        """逐仓守卫:止损(优先)+ 分批止盈。一次取价,两类判定。
+
+        止盈语义(4h 播放手册,2026-08-20):**仅作用于手册标的**(strategies.toml
+        命中的 symbol)。mg7/金银油等旧 universe 的 target 保持原来的咨询语义 ——
+        兑现与否由 LLM 自主决定,守卫不碰。手册标的上:
+          * target 命中且未兑现过(t1_done=0):有 target2 且 qty>=2 → 平半仓;
+            否则(无 target2 / 只剩 1 股)→ 整仓平。
+          * target2 命中且 t1_done=1 → 清剩余仓。
+        止损守卫不分标的,对全 universe 一视同仁(机械纪律,先于此变更存在)。
+        """
         positions = [dict(p) for p in self.db.open_positions()]
-        guarded = [p for p in positions if p.get("stop") is not None]
-        if not guarded:
+        watched = [p for p in positions
+                   if p.get("stop") is not None
+                   or (playbook_for(p["symbol"]) is not None
+                       and (p.get("target") is not None or p.get("target2") is not None))]
+        if not watched:
             return
 
         session = sess.current_session()
@@ -120,38 +132,83 @@ class RiskMonitor:
         # 一次 CLI 调用查完所有持仓。取价必须按会话取(顶层 last_done 在盘前/
         # 夜盘会停在上一个 regular close 上,正是这个陈旧价让 07-31 那次
         # 跳空在指标快照里完全看不见)。
-        prices = quotes.last_prices([p["symbol"] for p in guarded], session)
+        prices = quotes.last_prices([p["symbol"] for p in watched], session)
 
         prio = int(load_risk()["priority"]["user"]) + 1
-        for pos in guarded:
+        # dedup_key 带分钟桶:UNIQUE 索引不区分意图状态,固定 key 一旦被拒
+        # 就永远无法重投。分钟桶让它每分钟最多重试一次 —— 既不刷屏,
+        # 又不会因为一次拒单就把止损/止盈永久哑掉。
+        bucket = datetime.now(ET).strftime("%Y%m%d%H%M")
+        for pos in watched:
             price = prices.get(pos["symbol"])
             if price is None:
-                continue  # 取不到价这轮就不判,下轮再说 —— 绝不拿陈旧价触发止损
-            stop = float(pos["stop"])
-            breached = price <= stop if pos["side"] == "long" else price >= stop
-            if not breached:
+                continue  # 取不到价这轮就不判,下轮再说 —— 绝不拿陈旧价触发
+            is_long = pos["side"] == "long"
+
+            # ── 止损:优先于止盈,触发后本仓其余判定全部让路 ────────────────
+            if pos.get("stop") is not None:
+                stop = float(pos["stop"])
+                if (price <= stop if is_long else price >= stop):
+                    if self._exit_in_flight(pos["symbol"]):
+                        continue  # 已经在平了,别再投
+                    iid = self.db.submit_intent(
+                        source="risk_monitor",
+                        priority=prio,
+                        symbol=pos["symbol"],
+                        side="close",
+                        entry_hint=price,
+                        confidence=100,
+                        dedup_key=f"stop-{pos['id']}-{bucket}",
+                        reason=(f"stop breached: {pos['side']} {pos['symbol']} "
+                                f"last {price} vs stop {stop} (session={session})"),
+                    )
+                    if iid is not None:
+                        log.append(f"[stop-guard] {pos['symbol']} {pos['side']} 现价 {price} "
+                                   f"越过止损 {stop} → 投 close 意图 #{iid}")
+                    continue
+
+            # ── 分批止盈(仅手册标的;其余标的 target 归 LLM 自主)────────────
+            if playbook_for(pos["symbol"]) is None:
+                continue
+            qty = int(pos["qty"])
+            t1_pending = not pos.get("t1_done")
+            hit1 = (t1_pending and pos.get("target") is not None
+                    and (price >= float(pos["target"]) if is_long
+                         else price <= float(pos["target"])))
+            hit2 = (not t1_pending and pos.get("target2") is not None
+                    and (price >= float(pos["target2"]) if is_long
+                         else price <= float(pos["target2"])))
+            if not (hit1 or hit2):
                 continue
             if self._exit_in_flight(pos["symbol"]):
-                continue  # 已经在平了,别再投
+                continue
 
-            # dedup_key 带分钟桶:UNIQUE 索引不区分意图状态,固定 key 一旦被拒
-            # 就永远无法重投。分钟桶让它每分钟最多重试一次 —— 既不刷屏,
-            # 又不会因为一次拒单就把止损永久哑掉。
-            bucket = datetime.now(ET).strftime("%Y%m%d%H%M")
-            iid = self.db.submit_intent(
-                source="risk_monitor",
-                priority=prio,
-                symbol=pos["symbol"],
-                side="close",
-                entry_hint=price,
-                confidence=100,
-                dedup_key=f"stop-{pos['id']}-{bucket}",
-                reason=(f"stop breached: {pos['side']} {pos['symbol']} "
-                        f"last {price} vs stop {stop} (session={session})"),
-            )
-            if iid is not None:
-                log.append(f"[stop-guard] {pos['symbol']} {pos['side']} 现价 {price} "
-                           f"越过止损 {stop} → 投 close 意图 #{iid}")
+            staged = hit1 and pos.get("target2") is not None and qty >= 2
+            if staged:
+                half = qty // 2
+                iid = self.db.submit_intent(
+                    source="risk_monitor", priority=prio, symbol=pos["symbol"],
+                    side="close", hypothesis_qty=half, entry_hint=price,
+                    confidence=100, dedup_key=f"tp1-{pos['id']}-{bucket}",
+                    reason=(f"target1 hit: {pos['side']} {pos['symbol']} last {price} "
+                            f"vs target {pos['target']} → 出半仓 {half}/{qty}"),
+                )
+                if iid is not None:
+                    log.append(f"[target-guard] {pos['symbol']} T1 {pos['target']} 命中 "
+                               f"→ 平半仓 {half}/{qty},意图 #{iid}")
+            else:
+                which = "T2" if hit2 else "T1"
+                tgt = pos["target2"] if hit2 else pos["target"]
+                iid = self.db.submit_intent(
+                    source="risk_monitor", priority=prio, symbol=pos["symbol"],
+                    side="close", entry_hint=price, confidence=100,
+                    dedup_key=f"tp-{pos['id']}-{bucket}",
+                    reason=(f"target hit ({which}): {pos['side']} {pos['symbol']} "
+                            f"last {price} vs {tgt} → 清仓 {qty}"),
+                )
+                if iid is not None:
+                    log.append(f"[target-guard] {pos['symbol']} {which} {tgt} 命中 "
+                               f"→ 清仓 {qty},意图 #{iid}")
 
     # ── 回撤熔断 ────────────────────────────────────────────────────────────
     def _drawdown_breaker(self, log: list[str]) -> bool:
@@ -217,9 +274,9 @@ class RiskMonitor:
             log.append(f"[error] daily_reset: {e!r}")
 
         try:
-            self._stop_guard(log)
+            self._position_guards(log)
         except Exception as e:
-            log.append(f"[error] stop_guard: {e!r}")
+            log.append(f"[error] position_guards: {e!r}")
 
         just_halted = False
         try:

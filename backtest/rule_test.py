@@ -138,6 +138,12 @@ def run_backtest(exec_data, signal_data, signal_time_lookup,
                  # New rules
                  min_volume_ratio=0.0,       # 0 = disabled
                  no_entry_before_close=0,     # minutes, 0 = disabled
+                 max_hold_min=0,              # 0 = disabled; force exit at market after N minutes
+                 reeval_losing_min=0,         # 0 = disabled; exit if held >= N min AND unrealized net < 0
+                                              # (pessimistic proxy for "re-evaluate losing holds":
+                                              #  always closes, real re-eval would sometimes keep)
+                 bar_minutes=5,               # minutes per exec bar (5 for data/, 60 for data_1h*)
+                 entry_every_bars=6,          # decision cadence in bars (6x5m=30min; use 1 for 1h)
                  label=""):
     timeline = build_timeline(exec_data)
     capital = 1200.0
@@ -174,6 +180,19 @@ def run_backtest(exec_data, signal_data, signal_time_lookup,
                     if net > 0:
                         exit_reason = "take_profit"
 
+            # RULES: hold-duration exits (stop/tp take precedence)
+            if exit_reason is None and (max_hold_min > 0 or reeval_losing_min > 0):
+                held_min = (bar_idx - position["entry_bar"]) * bar_minutes
+                if max_hold_min > 0 and held_min >= max_hold_min:
+                    exit_reason = "max_hold"
+                elif reeval_losing_min > 0 and held_min >= reeval_losing_min:
+                    if position["side"] == "long":
+                        unreal = (price - position["entry_price"]) * position["qty"]
+                    else:
+                        unreal = (position["entry_price"] - price) * position["qty"]
+                    if unreal - position["qty"] * commission * 2 < 0:
+                        exit_reason = "reeval_losing"
+
             if exit_reason:
                 qty = position["qty"]
                 if position["side"] == "long":
@@ -189,7 +208,7 @@ def run_backtest(exec_data, signal_data, signal_time_lookup,
                     "entry_price": position["entry_price"], "exit_price": price,
                     "entry_time": position["entry_time"], "exit_time": time_str,
                     "pnl": pnl, "hold_bars": hold_bars,
-                    "hold_minutes": hold_bars * 5,
+                    "hold_minutes": hold_bars * bar_minutes,
                     "exit_reason": exit_reason,
                 })
                 position = None
@@ -198,8 +217,8 @@ def run_backtest(exec_data, signal_data, signal_time_lookup,
                 max_drawdown = max(max_drawdown, dd)
                 continue
 
-        # Entry only every 30 min
-        if bar_idx % 6 != 0:
+        # Entry only every `entry_every_bars` bars (default 6x5m = 30 min)
+        if bar_idx % entry_every_bars != 0:
             continue
         if position:
             continue
@@ -303,7 +322,7 @@ def run_backtest(exec_data, signal_data, signal_time_lookup,
                 "entry_price": position["entry_price"], "exit_price": price,
                 "entry_time": position["entry_time"], "exit_time": "END",
                 "pnl": pnl, "hold_bars": len(timeline) - position["entry_bar"],
-                "hold_minutes": (len(timeline) - position["entry_bar"]) * 5,
+                "hold_minutes": (len(timeline) - position["entry_bar"]) * bar_minutes,
                 "exit_reason": "end_of_data",
             })
 

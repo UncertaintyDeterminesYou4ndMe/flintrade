@@ -73,6 +73,25 @@ check("并发仓上限3 → 第4票拒", not v.approved and "并发" in v.reason
 v = gate().evaluate(long_intent(side="short", entry=100, stop=102))
 check("允许做空 → 批准", v.approved and v.qty == 40)
 
+# confidence 缩放:作用在名义上限之后,只减不增
+# 基准(无 confidence 字段)= 40 股;conf>=75 同样满额
+v = gate().evaluate({**long_intent(), "confidence": 80})
+check("conf=80 → 满额 40股", v.approved and v.qty == 40, f"qty={v.qty}")
+# conf<=50 → floor_scale 0.5 → 20 股
+v = gate().evaluate({**long_intent(), "confidence": 50})
+check("conf=50 → 半仓 20股", v.approved and v.qty == 20, f"qty={v.qty}")
+# 线性中段:conf=58 → 0.5+0.5*8/25=0.66 → int(40*0.66)=26
+v = gate().evaluate({**long_intent(), "confidence": 58})
+check("conf=58 → 线性缩至 26股", v.approved and v.qty == 26, f"qty={v.qty}")
+# conf 缺失(None)→ 不缩放(用户手动单向后兼容)
+v = gate().evaluate({**long_intent(), "confidence": None})
+check("conf=None → 不缩放 40股", v.approved and v.qty == 40, f"qty={v.qty}")
+# 平仓不受缩放影响:持仓全量放行
+held = [{"symbol": "NVDA.US", "side": "long", "qty": 7, "entry_price": 100, "risk_amt": 14}]
+v = gate(open_positions=held).evaluate(
+    {"id": 9, "source": "technical", "symbol": "NVDA.US", "side": "close", "confidence": 40})
+check("平仓不缩放 → 全量 7股", v.approved and v.qty == 7, f"qty={v.qty}")
+
 print("=== Executor 端到端(dry-run) ===")
 # 确定性 session
 S.current_session = lambda: "Intraday"
@@ -88,9 +107,9 @@ boot.update_risk(equity=10000.0, day_start_equity=10000.0, day_realized_pnl=0, o
 prod = DB(role="technical")
 ex = Executor()
 
-# 1) 开多 NVDA
+# 1) 开多 NVDA(conf=80 >= full_at 75:不触发 confidence 缩放,保持满额算术)
 prod.submit_intent(source="technical", symbol="NVDA.US", side="long",
-                   entry_hint=100.0, stop=98.0, target=110.0, confidence=70, reason="open long")
+                   entry_hint=100.0, stop=98.0, target=110.0, confidence=80, reason="open long")
 ex.process_once()
 pos = DB(role="reader").position_for("NVDA.US")
 r = DB(role="reader").get_risk()

@@ -23,6 +23,22 @@ def load_trading() -> dict:
     return _load("trading.toml")
 
 
+def load_strategies() -> dict:
+    """策略播放手册(strategies.toml)。缺文件时返回空 —— 系统退化为无手册运行。"""
+    try:
+        return _load("strategies.toml")
+    except FileNotFoundError:
+        return {}
+
+
+def playbook_for(symbol: str) -> dict | None:
+    """symbol → 命中的播放手册(含 name)。每次读盘,热加载同 risk.toml。"""
+    for name, pb in (load_strategies().get("playbooks") or {}).items():
+        if symbol in (pb.get("symbols") or []):
+            return {"name": name, **pb}
+    return None
+
+
 @lru_cache(maxsize=1)
 def cluster_of() -> dict[str, str]:
     """symbol → cluster 名(mega_tech/gold/silver/oil)。"""

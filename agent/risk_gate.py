@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from agent.config import cluster_of, load_risk
+from agent.config import cluster_of, load_risk, playbook_for
 
 
 @dataclass
@@ -87,6 +87,31 @@ class RiskGate:
     def _pct(self, key_section: str, key: str) -> float:
         return float(self.cfg[key_section][key])
 
+    def _confidence_scale(self, conf) -> float:
+        """自报 confidence → 批准量缩放系数(只减不增,上限 1.0)。
+
+        兑现两份 producer prompt 里「The Executor scales risk by it」的契约
+        (在此之前该承诺从未被代码兑现,producer 诚实报低分没有任何后果)。
+        Goodhart 属性:虚报高分最多拿到名义上限内的满额 —— 即今天的现状,
+        没有额外好处;报低分则真实缩减敞口。刻意用自报分数的线性映射而非
+        历史校准 —— confidence_buckets 的桶样本还小(总 n=75),等样本够了
+        再考虑校准化缩放。conf 缺失(用户手动单等)按 1.0 向后兼容。
+        """
+        try:
+            cs = self.cfg["per_trade"]["confidence_scale"]
+        except (KeyError, TypeError):
+            return 1.0  # 配置未定义 → 不缩放(旧 risk.toml 兼容)
+        if conf is None:
+            return 1.0
+        full_at = float(cs.get("full_at", 75))
+        floor_at = float(cs.get("floor_at", 50))
+        floor_scale = float(cs.get("floor_scale", 0.5))
+        if conf >= full_at:
+            return 1.0
+        if conf <= floor_at or full_at <= floor_at:
+            return floor_scale
+        return floor_scale + (1.0 - floor_scale) * (conf - floor_at) / (full_at - floor_at)
+
     # ── 主裁决 ────────────────────────────────────────────────────────────
     def evaluate(self, intent: dict) -> Verdict:
         side = intent["side"]
@@ -102,11 +127,28 @@ class RiskGate:
             pos = next((p for p in self.positions if p["symbol"] == symbol), None)
             if not pos:
                 return Verdict(False, reason=f"无 {symbol} 持仓可平")
-            return Verdict(True, qty=pos["qty"], reason="平仓放行", notes={"exit": True})
+            qty = int(pos["qty"])
+            # 部分平仓(分批止盈):意图带 hypothesis_qty 且小于持仓量时只平该部分
+            hq = intent.get("hypothesis_qty")
+            if hq is not None and 0 < int(hq) < qty:
+                qty = int(hq)
+            return Verdict(True, qty=qty, reason="平仓放行", notes={"exit": True})
 
         # 方向许可
         if side == "short" and not self.cfg["direction"]["allow_short"]:
             return Verdict(False, reason="配置禁止做空")
+
+        # 播放手册硬门槛(strategies.toml,binding=true):自动开仓必须携带手册的
+        # 共振确认(producer 从指标快照如实附上,不采信 LLM 自述)。prompt 里的
+        # 承诺升级为闸门的硬规则 —— 与 volume_ratio 过滤同级。人工(user)单豁免:
+        # 人可以 override 策略,止损/熔断等其余防线照常适用。
+        pb = playbook_for(symbol)
+        if pb and pb.get("binding") and intent.get("source") != "user":
+            if pb.get("long_only") and side != "long":
+                return Verdict(False, reason=f"playbook[{pb['name']}]: 仅允许多头入场")
+            feats = intent.get("features")
+            if not (isinstance(feats, dict) and feats.get("h4_confluence")):
+                return Verdict(False, reason=f"playbook[{pb['name']}]: 缺少 h4 共振确认(binding)")
 
         # 3. 冷却 no-revenge:同票最近一笔平仓为亏损且在冷却窗内
         cd = self._pct("per_trade", "revenge_cooldown_min")
@@ -168,6 +210,17 @@ class RiskGate:
                     return Verdict(False, reason=f"{label} 限额已满,无可用敞口")
                 qty = allowed_qty  # 缩量到约束允许的最大
 
+        # 6c. confidence 缩放 —— 必须在名义上限之后:实测名义上限(per_symbol 40%/
+        # cluster 60%)几乎总是先于 2% 风险定额卡住批准量(#71 定额 42 股被压到 12,
+        # #70 定额 78 股被压到 6),缩放若作用在定额上会被上限吞掉,变成 no-op。
+        conf = intent.get("confidence")
+        scale = self._confidence_scale(conf)
+        if scale < 1.0:
+            scaled = int(qty * scale)
+            if scaled < 1:
+                return Verdict(False, reason=f"confidence {conf} 缩放({scale:.2f})后不足 1 股")
+            qty = scaled
+
         # 6b. 组合总风险约束
         new_risk = qty * stop_dist
         max_open_risk = port["max_open_risk_pct"] / 100.0 * self.equity
@@ -177,8 +230,10 @@ class RiskGate:
             if qty < 1:
                 return Verdict(False, reason=f"组合总风险已达上限 {port['max_open_risk_pct']}%")
 
+        scale_note = f", conf {conf}→×{scale:.2f}" if scale < 1.0 else ""
         return Verdict(
             True, qty=qty,
-            reason=f"批准 {qty} 股(风险定额 ${qty*stop_dist:.2f} / 预算 ${max_risk_amt:.2f})",
-            notes={"risk_amt": round(qty * stop_dist, 4), "stop_dist": round(stop_dist, 4)},
+            reason=f"批准 {qty} 股(风险定额 ${qty*stop_dist:.2f} / 预算 ${max_risk_amt:.2f}{scale_note})",
+            notes={"risk_amt": round(qty * stop_dist, 4), "stop_dist": round(stop_dist, 4),
+                   "confidence_scale": round(scale, 4)},
         )

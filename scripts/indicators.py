@@ -102,6 +102,134 @@ def calc_macd(closes, fast=12, slow=26, signal_period=9):
     return macd_line, signal_line, histogram
 
 
+def calc_wr(highs, lows, closes, period=14):
+    """Williams %R, positive 0-100 convention (CN charting style):
+    WR = (HH - C) / (HH - LL) * 100.  >80 = oversold, <20 = overbought."""
+    result = [None] * len(closes)
+    for i in range(period - 1, len(closes)):
+        hh = max(highs[i - period + 1: i + 1])
+        ll = min(lows[i - period + 1: i + 1])
+        result[i] = 50.0 if hh == ll else (hh - closes[i]) / (hh - ll) * 100.0
+    return result
+
+
+def calc_mtm(closes, period=12, ma_period=6):
+    """Momentum: MTM = close - close[period ago]; MTMMA = SMA(MTM, ma_period)."""
+    mtm = [None] * min(period, len(closes)) + \
+          [closes[i] - closes[i - period] for i in range(period, len(closes))]
+    valid = [v for v in mtm if v is not None]
+    ma_valid = sma(valid, ma_period) if len(valid) >= ma_period else [None] * len(valid)
+    mtm_ma = [None] * (len(mtm) - len(ma_valid)) + ma_valid
+    return mtm, mtm_ma
+
+
+def _ts_epoch(k):
+    """kline timestamp → epoch seconds. Accepts int/float epoch or ISO8601 string."""
+    t = k.get("timestamp") or k.get("ts") or k.get("time")
+    if t is None:
+        return None
+    if isinstance(t, (int, float)):
+        return float(t)
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(str(t).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def aggregate_4h(klines_1h):
+    """Aggregate 1h bars into 4h bars by wall-clock 4h buckets (epoch // 14400).
+    Falls back to fixed groups of 4 when timestamps are absent."""
+    buckets, order = {}, []
+    for i, k in enumerate(klines_1h):
+        ts = _ts_epoch(k)
+        key = int(ts // 14400) if ts is not None else i // 4
+        if key not in buckets:
+            buckets[key] = {"open": float(k["open"]), "high": float(k["high"]),
+                            "low": float(k["low"]), "close": float(k["close"]),
+                            "volume": int(k["volume"])}
+            order.append(key)
+        else:
+            b = buckets[key]
+            b["high"] = max(b["high"], float(k["high"]))
+            b["low"] = min(b["low"], float(k["low"]))
+            b["close"] = float(k["close"])
+            b["volume"] += int(k["volume"])
+    return [buckets[k] for k in order]
+
+
+def h4_snapshot(klines_1h, lookback=12):
+    """4h 趋势 + 三指标共振快照(MACD / WR / MTM 播放手册的机器可读输入)。
+
+    Playbook: trend filter = close above rising SMA20 on 4h; entry needs all three
+    triggers to have fired within the last LOOKBACK(12) 4h bars (~2 交易日确认窗)
+    with their bullish state still holding NOW:
+      macd.turned_bull  — histogram crossed >0 within lookback AND is >0 now
+      wr.recovering     — WR reached >=90 (oversold) within lookback AND is <80 now
+      mtm.golden_cross  — MTM crossed above its MA within lookback AND is above now
+    `confluence` = trend_ok AND all three.
+
+    这套参数不是拍的:backtest/playbook_test.py 在 SNDK/MU 2025-09→2026-08 的
+    1h 数据上扫过 {同步触发, 4, 8, 12} —— 严格同步触发一年仅 0-1 个信号(不可用);
+    lookback=12 在两个标的上均为正(合计 +$2380 / 73 笔 / 胜率 ~41%)。改这里的
+    语义前先重跑那个脚本。
+    Returns None when there are not enough 4h bars (need ~36 for MACD warm-up).
+    """
+    LOOKBACK = lookback
+    bars = aggregate_4h(klines_1h)
+    if len(bars) < 36:
+        return None
+    highs = [b["high"] for b in bars]
+    lows = [b["low"] for b in bars]
+    closes = [b["close"] for b in bars]
+
+    sma20 = sma(closes, 20)
+    macd_line, _sig, hist = calc_macd(closes)
+    wr = calc_wr(highs, lows, closes)
+    mtm, mtm_ma = calc_mtm(closes)
+
+    price, ma20 = closes[-1], sma20[-1]
+    ma20_prev = sma20[-4] if len(sma20) >= 4 and sma20[-4] is not None else ma20
+    trend_ok = ma20 is not None and price > ma20 and ma20 >= ma20_prev
+
+    def _crossed_up(series, ref=None, lookback=LOOKBACK):
+        """series crossed above ref (another series, or 0) within last `lookback` bars."""
+        for j in range(1, lookback + 1):
+            if j + 1 > len(series) - 1:
+                break
+            cur, prev = series[-j], series[-j - 1]
+            rc = 0 if ref is None else ref[-j]
+            rp = 0 if ref is None else ref[-j - 1]
+            if None in (cur, prev, rc, rp):
+                continue
+            if prev <= rp and cur > rc:
+                return True
+        return False
+
+    macd_turned_bull = (hist[-1] is not None and hist[-1] > 0 and _crossed_up(hist))
+    wr_recent_max = max((v for v in wr[-(LOOKBACK + 5):-1] if v is not None), default=None)
+    wr_recovering = (wr[-1] is not None and wr_recent_max is not None
+                     and wr_recent_max >= 90 and wr[-1] < 80)
+    mtm_golden = (mtm[-1] is not None and mtm_ma[-1] is not None
+                  and mtm[-1] > mtm_ma[-1] and _crossed_up(mtm, ref=mtm_ma))
+
+    r = lambda v, n=4: round(v, n) if v is not None else None
+    return {
+        "bars": len(bars),
+        "close": r(price),
+        "sma20": r(ma20),
+        "trend_ok": trend_ok,
+        "macd": {"dif": r(macd_line[-1], 6), "hist": r(hist[-1], 6),
+                 "hist_prev": r(hist[-2], 6) if len(hist) > 1 else None,
+                 "above_zero": macd_line[-1] is not None and macd_line[-1] > 0,
+                 "turned_bull": macd_turned_bull},
+        "wr": {"value": r(wr[-1], 2), "recent_max": r(wr_recent_max, 2),
+               "recovering": wr_recovering},
+        "mtm": {"value": r(mtm[-1]), "ma": r(mtm_ma[-1]), "golden_cross": mtm_golden},
+        "confluence": bool(trend_ok and macd_turned_bull and wr_recovering and mtm_golden),
+    }
+
+
 def calc_atr(highs, lows, closes, period=14):
     """Average True Range."""
     if len(closes) < 2:
@@ -153,10 +281,21 @@ def score_entry(price, vwap, ema20, macd_val, macd_sig, macd_hist, macd_hist_pre
     return score, reasons
 
 
-def analyze(klines, symbol=""):
-    """Run full analysis on kline data. Returns indicators + entry score."""
+def analyze(klines, symbol="", h4_lookback=12):
+    """Run full analysis on kline data. Returns indicators + entry score.
+
+    1h indicators are computed on the LAST 50 bars regardless of input length —
+    callers may pass a longer history (e.g. 240 bars) purely to feed the 4h
+    aggregation; the cumulative VWAP and score semantics must not silently
+    stretch from a 50-bar window to a monthly window because of that.
+    """
     if len(klines) < 30:
         return {"symbol": symbol, "error": f"Need >=30 bars, got {len(klines)}", "score": 0, "signal": "WAIT"}
+
+    # 4h 播放手册快照,仅当调用方要求(lookback>0)。非手册标的传 0 → h4=None,
+    # 其 payload 与手册引入之前完全等价(策略隔离:手册不影响旧 universe)。
+    h4 = h4_snapshot(klines, lookback=h4_lookback) if h4_lookback else None
+    klines = klines[-50:]
 
     opens = [float(k["open"]) for k in klines]
     highs = [float(k["high"]) for k in klines]
@@ -221,15 +360,19 @@ def analyze(klines, symbol=""):
         "max_score": 8,
         "reasons": reasons,
         "signal": "BUY" if score >= 5 else "WAIT",
+        "h4": h4,
     }
 
 
 if __name__ == "__main__":
     symbol = ""
+    h4_lookback = 12
     args = sys.argv[1:]
     for i, arg in enumerate(args):
         if arg == "--symbol" and i + 1 < len(args):
             symbol = args[i + 1]
+        if arg == "--h4-lookback" and i + 1 < len(args):
+            h4_lookback = int(args[i + 1])
 
     try:
         data = json.loads(sys.stdin.read())
@@ -237,5 +380,5 @@ if __name__ == "__main__":
         print(json.dumps({"error": f"Invalid JSON: {e}"}))
         sys.exit(1)
 
-    result = analyze(data, symbol)
+    result = analyze(data, symbol, h4_lookback=h4_lookback)
     print(json.dumps(result, ensure_ascii=False, indent=2))

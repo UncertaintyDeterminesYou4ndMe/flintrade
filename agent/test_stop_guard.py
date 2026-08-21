@@ -323,6 +323,101 @@ check("stop 为 NULL → 跳过,不投意图", pending_closes("GLD.US") == 0, f"
 
 
 # ══════════════════════════════════════════════════════════════════════════
+print("=== D. intent 终态回写(订单到终态,intent 不再停在 approved)===")
+# ══════════════════════════════════════════════════════════════════════════
+from agent.reconciler import Reconciler  # noqa: E402
+
+
+def seed_deferred_order(side="SELL", with_pos=True):
+    """一张 submitted 在途单 + 停在 approved 的 intent(executor 延迟成交后的现场)。"""
+    db = DB(role="migrate")
+    if with_pos:
+        db.open_position(symbol="AAPL.US", side="long", qty=12, entry_price=331.21,
+                         stop=328.0, risk_amt=38.52, source="technical")
+    iid = db.submit_intent(source="technical", symbol="AAPL.US",
+                           side=("close" if side in ("SELL", "COVER") else "long"),
+                           entry_hint=312.30, stop=328.0, reason="deferred")
+    db.conn.execute("UPDATE intents SET status='approved' WHERE id=?", (iid,))
+    db.create_order(client_order_id=f"flintrade-{iid}", symbol="AAPL.US", side=side,
+                    qty=12, price=312.30, intent_id=iid)
+    db.update_order(f"flintrade-{iid}", broker_order_id="B-DEF", status="submitted")
+    db.close()
+    return iid
+
+
+def intent_status(iid):
+    rdb = DB(role="reader")
+    st = rdb.conn.execute("SELECT status FROM intents WHERE id=?", (iid,)).fetchone()["status"]
+    rdb.close()
+    return st
+
+
+# D1:延迟成交,Reconciler 结算平仓 → intent 收尾为 filled
+wipe()
+iid = seed_deferred_order("SELL")
+rec = Reconciler(broker=StubBroker(detail_status="Filled", executed=12))
+rec._settle_pending(); rec.db.close()
+check("延迟成交结算(close)→ intent filled", intent_status(iid) == "filled",
+      f"得到 {intent_status(iid)}")
+
+# D2:终态 Rejected 无成交 → intent rejected(07-31 的 flintrade-199/200 从此不再是孤儿)
+wipe()
+iid = seed_deferred_order("SELL")
+rec = Reconciler(broker=StubBroker(detail_status="Rejected", executed=0))
+rec._settle_pending(); rec.db.close()
+check("终态 Rejected 无成交 → intent rejected", intent_status(iid) == "rejected",
+      f"得到 {intent_status(iid)}")
+
+# D3:终态 Expired 无成交 → intent expired(flintrade-198 的情形)
+wipe()
+iid = seed_deferred_order("SELL")
+rec = Reconciler(broker=StubBroker(detail_status="Expired", executed=0))
+rec._settle_pending(); rec.db.close()
+check("终态 Expired 无成交 → intent expired", intent_status(iid) == "expired",
+      f"得到 {intent_status(iid)}")
+
+# D4:_cancel_inflight 清场 → 旧 intent 收尾为 cancelled
+wipe()
+old_iid = seed_deferred_order("SELL")
+db = DB(role="migrate")
+new_iid = db.submit_intent(source="risk_monitor", priority=101, symbol="AAPL.US",
+                           side="close", entry_hint=308.55, reason="stop breached")
+db.close()
+brk = StubBroker(detail_status="Cancelled", executed=0)
+Executor(broker=brk).process_once()
+check("清场撤单 → 旧 intent cancelled", intent_status(old_iid) == "cancelled",
+      f"得到 {intent_status(old_iid)}")
+check("新平仓 intent 正常 filled", intent_status(new_iid) == "filled",
+      f"得到 {intent_status(new_iid)}")
+
+# D5:赛跑输了(撤单前已成交)→ 旧 intent 留 approved,随后 Reconciler 收尾 filled
+wipe()
+old_iid = seed_deferred_order("SELL")
+db = DB(role="migrate")
+db.submit_intent(source="risk_monitor", priority=101, symbol="AAPL.US",
+                 side="close", entry_hint=308.55, reason="stop breached")
+db.close()
+Executor(broker=StubBroker(detail_status="Filled", executed=12)).process_once()
+check("赛跑输了:executor 不动旧 intent(留给 Reconciler)",
+      intent_status(old_iid) == "approved", f"得到 {intent_status(old_iid)}")
+rec = Reconciler(broker=StubBroker(detail_status="Filled", executed=12))
+rec._settle_pending(); rec.db.close()
+check("随后 Reconciler 结算并收尾 filled", intent_status(old_iid) == "filled",
+      f"得到 {intent_status(old_iid)}")
+
+# D6:回写只覆盖 approved —— 已 rejected 的 intent 不被 filled 覆盖
+wipe()
+iid = seed_deferred_order("SELL")
+db = DB(role="migrate")
+db.conn.execute("UPDATE intents SET status='rejected' WHERE id=?", (iid,))
+db.close()
+rec = Reconciler(broker=StubBroker(detail_status="Filled", executed=12))
+rec._settle_pending(); rec.db.close()
+check("已 rejected 的 intent 不被回写覆盖", intent_status(iid) == "rejected",
+      f"得到 {intent_status(iid)}")
+
+
+# ══════════════════════════════════════════════════════════════════════════
 print("\n" + "=" * 40)
 print(f"PASS={len(PASS)}  FAIL={len(FAIL)}")
 if FAIL:

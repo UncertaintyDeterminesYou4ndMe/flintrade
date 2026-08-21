@@ -2,7 +2,8 @@
 
 [universe]
 symbols = ["AAPL.US","MSFT.US","GOOGL.US","AMZN.US","NVDA.US","META.US","TSLA.US",
-           "GLD.US","UGL.US","SLV.US","AGQ.US","USO.US"]
+           "GLD.US","UGL.US","SLV.US","AGQ.US","USO.US",
+           "SNDK.US","MU.US"]        # memory 簇:4h 播放手册标的(2026-08-20 加入)
 market  = ["QQQ.US","SPY.US"]    # regime 指标,不交易
 
 [execution]
@@ -60,4 +61,5 @@ reconciler_poll_sec = 15         # 对账(无 WebSocket 时的轮询间隔)
 risk_monitor_sec   = 10          # 熔断器扫描
 executor_poll_sec  = 10          # Executor 消费意图队列的轮询间隔
 reflect_check_sec  = 600         # 做梦检查(满足睡眠期+今日未做梦才真做)
+invariants_check_sec = 600       # 账本不变量自检(只读对账,违反只报警不干预)
 heartbeat_stale_sec = 120        # 心跳超过此值视为进程死亡

@@ -14,6 +14,15 @@ volume_ratio_floor         = 0.3 # volume_ratio < 0.3 拒(旧 §8,回测 +$82)
 session_close_blackout_min = 30  # 距 session 收盘 < 30min 不开新仓(旧 §9,回测 +$6)
 revenge_cooldown_min       = 60  # 同票平亏损单后 60min 内不再开仓(旧 §7 no-revenge 量化)
 min_stop_distance_pct      = 0.1 # entry 与 stop 距离过近(<0.1%)视为无效止损,拒
+
+[per_trade.confidence_scale]
+# 兑现 producer 契约「The Executor scales risk by it」:对最终批准量的截断式缩放。
+# 作用在名义上限(per_symbol/cluster)之后 —— 名义上限几乎总是先于风险定额卡住
+# 批准量,缩放放在定额上会被上限吞掉。只减不增:conf>=full_at 拿满额,<=floor_at
+# 打 floor_scale 折,之间线性;conf 缺失按 1.0(用户手动单向后兼容)。
+full_at     = 75
+floor_at    = 50
+floor_scale = 0.5
 adopt_protective_stop_pct  = 3   # reconciler 纳管未追踪仓位时,补的保护性 stop 距离(% of 成本)
 adopt_untracked_drift      = false # reconciler 是否自动纳管「券商有、库里没有」的未追踪仓位。
                                    # 默认 false = 只告警(add_signal kind=drift),不擅自建仓。
@@ -26,6 +35,7 @@ mega_tech = ["AAPL.US","MSFT.US","GOOGL.US","AMZN.US","NVDA.US","META.US","TSLA.
 gold      = ["GLD.US","UGL.US"]
 silver    = ["SLV.US","AGQ.US"]
 oil       = ["USO.US"]
+memory    = ["SNDK.US","MU.US"]  # 存储/内存半导体:同周期强相关,合并限额
 max_per_cluster_pct = 60         # 单簇名义市值 / 权益 ≤ 60%(防 2 个仓全是 mega tech 的假分散)
 
 [direction]

@@ -96,18 +96,32 @@ def _build_payload(catalysts: list[dict]) -> dict:
         if sym and sym not in symbols:
             symbols.append(sym)
     quotes = {s: _quote(s) for s in symbols}
-    return {
+    payload = {
         "now_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "catalysts": catalysts,
         "quotes": quotes,
     }
+    # 唤醒回忆(同 loop_technical,但裁掉 plans):lessons/stats/self_assessment 是
+    # 全 producer 共享的记忆 —— event 源的成交同样在喂养它们,不注入就是记忆不对称
+    # (2026-08-21 UGL:技术面 loop 依「贵金属同步脉冲易均值回归」教训放弃的簇,
+    # 舆情 loop 两天后因看不见这条教训而开仓)。plans 是技术面 watchlist 概念,
+    # 与催化剂判断无关,注入只会稀释焦点,故不给。
+    try:
+        from agent import reflect
+        recall = reflect.recall()
+        recall.pop("plans", None)
+        payload["recall"] = recall
+    except Exception as e:  # recall 挂了不拦决策,降级为无记忆(同技术面 loop)
+        payload["recall"] = {"error": f"recall unavailable: {e!r}"}
+    return payload
 
 
 def call_llm(data: dict) -> str:
     """Arena:无工具的纯分析调用(同 loop_technical)。走 llm 路由(trader 档)。"""
     from agent import llm
     return llm.complete(json.dumps(data, ensure_ascii=False),
-                        system_prompt=PROMPT.read_text(), tier="trader")
+                        system_prompt=PROMPT.read_text(), tier="trader",
+                        tag="producer:event")
 
 
 def run_once() -> str | list[str]:

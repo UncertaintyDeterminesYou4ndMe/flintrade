@@ -54,31 +54,61 @@ except:
 # Quotes for all symbols + market indices
 QUOTES=$(lb quote $SYMBOLS $MARKET_SYMBOLS --format json 2>/dev/null || echo '[]')
 
-# Always analyze QQQ + SPY for market regime, plus top 5 tradeable by volume
+# Playbook symbols + h4 confirmation window come from strategies.toml — the single
+# source of truth for symbol×strategy bindings. Do NOT hardcode symbol lists here.
+read -r PLAYBOOK_SYMS H4_LOOKBACK <<< "$(python3 -c "
+import tomllib
+try:
+    pbs = tomllib.load(open('$FLINTRADE_DIR/agent/config/strategies.toml','rb')).get('playbooks',{})
+except FileNotFoundError:
+    pbs = {}
+syms, lb = [], 12
+for pb in pbs.values():
+    syms += [s for s in pb.get('symbols',[]) if s not in syms]
+    lb = max(lb, int(pb.get('lookback', 12)))
+print((','.join(syms) or '-') + ' ' + str(lb))" 2>/dev/null || echo "- 12")"
+
+# Always analyze QQQ + SPY (market regime) + playbook names (binding 手册标的
+# 不进 kline 名单就永远无法触发), plus top 5 tradeable.
+# Rank by TURNOVER (dollar volume), not share volume — a $1,500 stock trading
+# $26B/day would lose a share-count ranking to every $200 mega-cap.
 KLINE_SYMBOLS=$(echo "$QUOTES" | python3 -c "
 import json, sys
-market = ['QQQ.US', 'SPY.US']  # always include
+market = ['QQQ.US', 'SPY.US']    # always include
+playbook = [s for s in '$PLAYBOOK_SYMS'.split(',') if s and s != '-']  # from strategies.toml
 try:
     data = json.load(sys.stdin)
     if isinstance(data, list):
-        # Filter out market symbols, sort tradeable by volume
-        tradeable = [q for q in data if q.get('symbol','') not in market]
-        sorted_q = sorted(tradeable, key=lambda x: float(x.get('volume', 0)), reverse=True)
+        tradeable = [q for q in data if q.get('symbol','') not in market + playbook]
+        def dollar_vol(q):
+            t = q.get('turnover')
+            if t is not None:
+                try: return float(t)
+                except (TypeError, ValueError): pass
+            try: return float(q.get('volume', 0)) * float(q.get('last', 0))
+            except (TypeError, ValueError): return 0.0
+        sorted_q = sorted(tradeable, key=dollar_vol, reverse=True)
         top5 = [q.get('symbol', '') for q in sorted_q[:5]]
-        print(' '.join(market + top5))
+        print(' '.join(market + playbook + top5))
     else:
-        print(' '.join(market + ['NVDA.US', 'AAPL.US', 'MSFT.US', 'TSLA.US', 'META.US']))
+        print(' '.join(market + playbook + ['NVDA.US', 'AAPL.US', 'MSFT.US', 'TSLA.US', 'META.US']))
 except:
-    print(' '.join(market + ['NVDA.US', 'AAPL.US', 'MSFT.US', 'TSLA.US', 'META.US']))
+    print(' '.join(market + playbook + ['NVDA.US', 'AAPL.US', 'MSFT.US', 'TSLA.US', 'META.US']))
 " 2>/dev/null || echo "QQQ.US SPY.US NVDA.US AAPL.US MSFT.US TSLA.US META.US")
 
 # Klines + indicators for top symbols (1h period — backtested as optimal for 30min execution)
+# 手册标的拉 240 根喂 4h 聚合并计算 h4;其余标的维持原 50 根、跳过 h4(--h4-lookback 0)
+# —— 策略隔离:非手册标的的指标 payload 与手册引入之前完全等价。
 IND_ARRAY="["
 FIRST=true
 for SYM in $KLINE_SYMBOLS; do
-  KLINE=$(lb kline "$SYM" --period 1h --count 50 --format json 2>/dev/null || echo '[]')
+  case ",$PLAYBOOK_SYMS," in
+    *",$SYM,"*) COUNT=240; H4_FLAG="${H4_LOOKBACK:-12}" ;;
+    *)          COUNT=50;  H4_FLAG=0 ;;
+  esac
+  KLINE=$(lb kline "$SYM" --period 1h --count "$COUNT" --format json 2>/dev/null || echo '[]')
   if [ "$KLINE" != "[]" ] && [ -n "$KLINE" ]; then
-    IND=$(echo "$KLINE" | python3 "$FLINTRADE_DIR/scripts/indicators.py" --symbol "$SYM" 2>/dev/null || echo '{"symbol":"'$SYM'","error":"calc failed"}')
+    IND=$(echo "$KLINE" | python3 "$FLINTRADE_DIR/scripts/indicators.py" --symbol "$SYM" --h4-lookback "$H4_FLAG" 2>/dev/null || echo '{"symbol":"'$SYM'","error":"calc failed"}')
     if [ "$FIRST" = true ]; then
       FIRST=false
     else

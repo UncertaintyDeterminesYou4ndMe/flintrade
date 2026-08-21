@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS positions (
     qty         INTEGER NOT NULL,
     entry_price REAL    NOT NULL,
     stop        REAL,
-    target      REAL,
+    target      REAL,                          -- 第一止盈位(分批:触发平半仓)
+    target2     REAL,                          -- 第二止盈位(触发清剩余仓)
+    t1_done     INTEGER NOT NULL DEFAULT 0,    -- 第一止盈已兑现(任何部分平仓都置 1)
     risk_amt    REAL,                          -- (entry-stop)*qty,组合风险约束的累加项
     source      TEXT,                          -- 开仓信号来源
     intent_id   INTEGER REFERENCES intents(id),

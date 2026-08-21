@@ -32,7 +32,10 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 # 角色 → 可写的受保护表。未列出的写操作会被 _require 拒绝。
 _WRITE_PERMS = {
     "executor":     {"intents_decide", "positions", "trades", "orders", "risk_state", "halt"},
-    "reconciler":   {"positions", "trades", "orders", "risk_state", "signals"},
+    # intents_decide:Reconciler 接手 executor 的延迟结算(限价单未即时成交),
+    # 订单到终态时要把 intent 一并收尾 —— 否则 intent 永远停在 approved
+    # (2026-08 复盘:库里积了十几条这种孤儿,intent 状态统计全失真)。
+    "reconciler":   {"intents_decide", "positions", "trades", "orders", "risk_state", "signals"},
     "risk_monitor": {"halt", "intents_submit"},
     "technical":    {"intents_submit", "signals", "events"},
     "event":        {"intents_submit", "signals", "events"},
@@ -156,20 +159,31 @@ class DB:
     # ── 持仓 ──────────────────────────────────────────────────────────────
     def open_position(self, *, symbol: str, side: str, qty: int, entry_price: float,
                       stop: float | None = None, target: float | None = None,
+                      target2: float | None = None,
                       risk_amt: float | None = None, source: str | None = None,
                       intent_id: int | None = None) -> int:
         self._require("positions")
         cur = self.conn.execute(
-            """INSERT INTO positions(symbol,side,qty,entry_price,stop,target,risk_amt,
-                   source,intent_id,opened_at,status)
-               VALUES(?,?,?,?,?,?,?,?,?,?, 'open')""",
-            (symbol, side, qty, entry_price, stop, target, risk_amt, source, intent_id, now()),
+            """INSERT INTO positions(symbol,side,qty,entry_price,stop,target,target2,
+                   risk_amt,source,intent_id,opened_at,status)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?, 'open')""",
+            (symbol, side, qty, entry_price, stop, target, target2,
+             risk_amt, source, intent_id, now()),
         )
         return cur.lastrowid
 
     def close_position(self, position_id: int):
         self._require("positions")
         self.conn.execute("UPDATE positions SET status='closed' WHERE id=?", (position_id,))
+
+    def reduce_position(self, position_id: int, *, qty: int, risk_amt: float | None):
+        """部分平仓后的持仓收缩:剩余量 + 按比例释放后的剩余风险额。
+        任何部分平仓都视为「第一止盈已兑现」(t1_done=1),止盈守卫据此切换到 target2。"""
+        self._require("positions")
+        self.conn.execute(
+            "UPDATE positions SET qty=?, risk_amt=?, t1_done=1 WHERE id=?",
+            (qty, risk_amt, position_id),
+        )
 
     def open_positions(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM positions WHERE status='open'").fetchall()
@@ -308,6 +322,13 @@ def init_db(path: Path | None = None):
         conn.execute("ALTER TABLE trades ADD COLUMN attribution TEXT")
     except sqlite3.OperationalError:
         pass
+    # 分批止盈列(2026-08-20):同样幂等补列。
+    for ddl in ("ALTER TABLE positions ADD COLUMN target2 REAL",
+                "ALTER TABLE positions ADD COLUMN t1_done INTEGER NOT NULL DEFAULT 0"):
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
     row = conn.execute("SELECT COUNT(*) FROM risk_state").fetchone()
     if row[0] == 0:
         conn.execute("INSERT INTO risk_state(id,equity,day_start_equity) VALUES(1, NULL, NULL)")

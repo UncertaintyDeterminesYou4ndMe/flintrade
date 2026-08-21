@@ -15,6 +15,7 @@ Reconciler(Phase 2)接管后会用 broker.assets 校准真实权益。
 """
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timezone
 
@@ -50,6 +51,16 @@ class Executor:
             return f"持有 {held['side']} {intent['symbol']},翻向需先平仓(close)再开(prompt 契约)"
         return None
 
+    # ── intent 终态回写(与 reconciler._finish_intent 同一纪律)──────────────
+    def _finish_intent(self, intent_id, status: str, reason: str | None = None):
+        """把陪着订单走到终态的 intent 一并收尾;仅覆盖 approved,幂等。"""
+        if not intent_id:
+            return
+        row = self.db.conn.execute(
+            "SELECT status FROM intents WHERE id=?", (intent_id,)).fetchone()
+        if row and row["status"] == "approved":
+            self.db.decide_intent(intent_id, status, reject_reason=reason)
+
     # ── 撤在途单(仅退出路径)────────────────────────────────────────────
     def _cancel_inflight(self, symbol: str, log: list[str]) -> bool:
         """撤掉该标的所有在途单,为新的平仓单清场。返回「可以继续下单」。
@@ -73,6 +84,8 @@ class Executor:
             if not boid:
                 # 只在本地建了行、没拿到券商单号 —— 券商侧无单可撤,本地标掉即可。
                 self.db.update_order(coid, status="cancelled")
+                self._finish_intent(o["intent_id"], "cancelled",
+                                    reason="被新平仓意图清场撤单(未获券商单号)")
                 continue
 
             res = self.broker.cancel(boid)
@@ -84,13 +97,16 @@ class Executor:
                 executed = 0
 
             if status == "Filled" or executed > 0:
-                # 撤单没赶上成交。留 submitted,Reconciler 会按实际成交量结算。
+                # 撤单没赶上成交。留 submitted,Reconciler 会按实际成交量结算
+                # (intent 也留给 Reconciler 收尾成 filled)。
                 proceed = False
                 log.append(f"[cancel #{coid}] {symbol} {o['side']} 撤单前已成交"
                            f"({status} executed={executed}),交给 Reconciler 结算")
                 continue
 
             self.db.update_order(coid, status="cancelled")
+            self._finish_intent(o["intent_id"], "cancelled",
+                                reason="被新平仓意图清场撤单")
             log.append(f"[cancel #{coid}] {symbol} {o['side']} "
                        f"{'已撤' if res.get('ok') else '撤单失败但券商侧无成交'}: {boid}")
         return proceed
@@ -219,9 +235,11 @@ class Executor:
             return True, f"平仓 {symbol} {qty} @ {fill_price}, pnl={pnl_net}"
 
         # 开仓
+        feats = intent.get("features") if isinstance(intent.get("features"), dict) else {}
         pos_id = settle.settle_open(
             self.db, symbol=symbol, side=pos_side, qty=qty, fill_price=fill_price,
             stop=intent.get("stop"), target=intent.get("target"),
+            target2=feats.get("target2"),
             commission_per_share=self.commission, source=intent.get("source"),
             intent_id=intent["id"], broker_order_id=boid, reason=intent.get("reason"))
         risk_amt = round(qty * abs(fill_price - intent["stop"]), 4)
@@ -238,6 +256,13 @@ class Executor:
 
         for it in self.db.claim_intents():
             intent = dict(it)
+            # features 在库里是 JSON 文本;不解析的话下游所有
+            # `intent["features"].get(...)`(volume_ratio 硬过滤、target2)全部静默失效。
+            if isinstance(intent.get("features"), str):
+                try:
+                    intent["features"] = json.loads(intent["features"])
+                except (ValueError, TypeError):
+                    intent["features"] = None
             positions = self._positions()
             equity = self._equity()
             halted = self.db.is_halted()
