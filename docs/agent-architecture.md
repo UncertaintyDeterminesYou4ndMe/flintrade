@@ -7,6 +7,11 @@ supersedes: arena-architecture.md
 
 # Flintrade Agent Architecture (Daemon)
 
+> **演进说明(2026-08-21):** v1 Arena 路径(`run.sh` / `prompt.md` / `state.json`)已**删除**。
+> 下文出现的 v1↔v2 对照表是历史参照,不是现状;§6/§7 里"Executor 导出 state.json 投影"
+> 这条兼容措施已随之取消 —— dashboard 与 backtest 直接读 `flintrade.db`。
+> v1 账本已迁入 db(`trades.attribution='legacy'`),`migrate.py` 完成使命后一并移除。
+
 > **演进说明(2026-06):** 下文按"多进程"描述各 loop。实现上已**合并为单进程**
 > `agent/daemon.py`:同样的 loop,改为一个进程里的多线程,各按 cadence 调 `run_once()`。
 > 解耦不变(只通过 SQLite 队列对话),单一写者由 db role guard 按 handle 角色强制(与进程无关),

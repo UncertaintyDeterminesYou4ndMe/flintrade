@@ -10,10 +10,11 @@ bug + 防止复发的规则**。不收假设性的最佳实践——没翻过车
 
 ## 编排 / 进程
 
-### run.sh 不用 `set -euo pipefail`
-Claude 的 stdout 含有会破坏 shell 管道的字符,严格模式下整个 cycle 静默死亡。
-每一步用自己的 fallback(`|| echo '[]'` 等)兜底,而不是全局严格模式。
-→ `run.sh:8`,commit `a8e8b8b`
+### 不要把 LLM 的 stdout 喂进严格模式的管道(历史条目)
+v1 的 `run.sh` 曾因 `set -euo pipefail` 静默整轮死亡:Claude 的 stdout 含有会破坏
+shell 管道的字符。当年的对策是每步各自 fallback(`|| echo '[]'`),不开全局严格模式。
+`run.sh` 已于 2026-08-21 随 v1 退役删除(commit `a8e8b8b` 存有原始上下文);
+规则本身对任何"把模型输出接进 shell 管道"的新代码仍然成立。
 
 ### 带病存活比死亡更危险
 2026-07-26:sqlite 连接泄漏耗尽 fd 后,各 loop 每轮报错但**进程不死**,

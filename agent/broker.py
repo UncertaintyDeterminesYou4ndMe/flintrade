@@ -13,7 +13,7 @@ Two modes:
 The longbridge CLI reads its credentials from LONGBRIDGE_* env vars set by the
 launcher; we inherit the process environment and never hardcode anything.
 
-CLI patterns (see prompt.md "Execution" + scripts/collect.sh):
+CLI patterns (see scripts/collect.sh for the read-side equivalents):
   longbridge order buy  SYMBOL QTY --price P --outside-rth FLAG -y --format json
   longbridge order sell SYMBOL QTY --price P --outside-rth FLAG -y --format json
       -> JSON containing an `order_id` on success

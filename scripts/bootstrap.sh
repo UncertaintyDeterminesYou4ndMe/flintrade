@@ -75,7 +75,6 @@ if [ ! -f flintrade.env ]; then
 else
   ok "flintrade.env exists (kept as-is)"
 fi
-[ -f state.json ] || { cp state.json.example state.json 2>/dev/null && ok "created state.json" || true; }
 mkdir -p logs
 .venv/bin/python -c "from agent.db import init_db; init_db()" && ok "flintrade.db schema ready"
 

@@ -1,8 +1,10 @@
 """Shared market-session "clock / orientation" module for Flintrade daemons.
 
-All daemon processes call into this module to agree on the current US market
-session. The logic here is a faithful port of the inline session-resolution
-code that lives in ``run.sh`` (steps 1 + the OUTSIDE_RTH case statement):
+All daemon loops call into this module to agree on the current US market
+session. It is now the sole implementation; the logic began as a faithful port
+of the inline session resolution in the v1 ``run.sh`` (removed 2026-08-21 —
+later docstrings here say "mirrors run.sh" for provenance, not as a pointer to
+live code):
 
   * the same Pre/Intraday/Post matching against ``longbridge trading session``,
   * the same Overnight 20:00-03:50 ET heuristic (next trading day must be a

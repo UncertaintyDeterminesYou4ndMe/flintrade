@@ -6,7 +6,6 @@
 set -euo pipefail
 
 FLINTRADE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATE_FILE="$FLINTRADE_DIR/state.json"
 
 # longbridge 包装:撞 429/限流就退避重试(最多3次),否则回显 stdout。
 # 与 agent/lb.py 同思路,覆盖 collect.sh 这个 bash 重型调用方。
@@ -127,81 +126,6 @@ SESSION=$(lb trading session --format json 2>/dev/null || echo '[]')
 CURRENT_SESSION="${MARKET_STATUS:-unknown}"
 OUTSIDE_RTH_HINT="${OUTSIDE_RTH:-RTH_ONLY}"
 
-# PnL feedback from state.json — win rate, P/L ratio, recent trades
-PNL_FEEDBACK=$(python3 -c "
-import json, sys
-from datetime import datetime
-
-try:
-    with open('$STATE_FILE') as f:
-        state = json.load(f)
-except:
-    state = {}
-
-trades = state.get('trades', [])
-
-# Pair BUY/SELL into round trips
-round_trips = []
-i = 0
-while i < len(trades) - 1:
-    t = trades[i]
-    if t.get('side') == 'BUY' or (t.get('side') == 'SELL' and t.get('pnl') is None):
-        if i + 1 < len(trades) and trades[i+1].get('pnl') is not None:
-            round_trips.append(trades[i+1])  # the closing trade has pnl
-            i += 2
-            continue
-    i += 1
-
-wins = [t for t in round_trips if t.get('pnl', 0) > 0]
-losses = [t for t in round_trips if t.get('pnl', 0) <= 0]
-
-win_count = len(wins)
-loss_count = len(losses)
-total = win_count + loss_count
-
-win_rate = win_count / total if total > 0 else 0
-avg_win = sum(t['pnl'] for t in wins) / win_count if win_count else 0
-avg_loss = abs(sum(t['pnl'] for t in losses) / loss_count) if loss_count else 0
-pl_ratio = avg_win / avg_loss if avg_loss > 0 else 0
-
-# Invocation count from dispatch log
-invocation_count = 0
-try:
-    with open('$FLINTRADE_DIR/logs/dispatch.log') as f:
-        invocation_count = sum(1 for line in f if 'mode=TRADE' in line or 'mode=PLAN' in line)
-except:
-    pass
-
-# Time since first trade
-created = state.get('created', '')
-elapsed_minutes = 0
-if created:
-    try:
-        start = datetime.strptime(created, '%Y-%m-%d')
-        elapsed_minutes = int((datetime.now() - start).total_seconds() / 60)
-    except:
-        pass
-
-# Last 10 trades (raw, for context)
-last_trades = trades[-10:] if trades else []
-
-feedback = {
-    'win_rate': round(win_rate, 3),
-    'pl_ratio': round(pl_ratio, 3),
-    'total_round_trips': total,
-    'wins': win_count,
-    'losses': loss_count,
-    'avg_win': round(avg_win, 2),
-    'avg_loss': round(avg_loss, 2),
-    'realized_pnl': state.get('realized_pnl', 0),
-    'capital': state.get('capital', 1200),
-    'elapsed_minutes': elapsed_minutes,
-    'invocation_count': invocation_count,
-    'position': state.get('position'),
-    'last_trades': last_trades,
-}
-print(json.dumps(feedback, ensure_ascii=False))
-" 2>/dev/null || echo '{}')
 
 # Build the data payload
 python3 -c "
@@ -225,7 +149,6 @@ data = {
     },
     'quotes': json.loads('''$QUOTES''') if '''$QUOTES''' != '[]' else [],
     'indicators': json.loads('''$IND_ARRAY'''),
-    'pnl_feedback': json.loads('''$PNL_FEEDBACK'''),
 }
 print(json.dumps(data, ensure_ascii=False, indent=2))
 " 2>/dev/null

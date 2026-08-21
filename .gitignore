@@ -32,6 +32,3 @@ backtest/data_1h/*_US.json
 backtest/data_1h_2025/*_US.json
 backtest/data_playbook/
 llm_calls/
-
-# runtime state (created by bootstrap.sh)
-state.json
