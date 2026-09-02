@@ -71,13 +71,21 @@ print((','.join(syms) or '-') + ' ' + str(lb))" 2>/dev/null || echo "- 12")"
 # 不进 kline 名单就永远无法触发), plus top 5 tradeable.
 # Rank by TURNOVER (dollar volume), not share volume — a $1,500 stock trading
 # $26B/day would lose a share-count ranking to every $200 mega-cap.
+# 全池注入 —— 不再按成交额截断。
+# 2026-09-01:原先取成交额 top5,是 v1 Arena 第一版 collect.sh 留下的截断
+# (commit 8a95748,注释只写「take top 5」,没写理由)。后果:USO/UGL/AGQ 在
+# 2026-08 的 514 轮里 0% 拿到指标,而 risk_gate 的 volume_ratio 硬门槛依赖指标,
+# 三笔成交(USO −$51.45 / META +$38.52 / UGL +$124.55)在无指标来源下过了闸。
+# 成本实测:collect 51s→94s(cadence 1800s,富余 19 倍),payload +1.6K tokens/轮。
+# 排序保留,只为让高流动性标的在 payload 里靠前;SYMBOLS 是唯一的池子定义。
 KLINE_SYMBOLS=$(echo "$QUOTES" | python3 -c "
 import json, sys
 market = ['QQQ.US', 'SPY.US']    # always include
 playbook = [s for s in '$PLAYBOOK_SYMS'.split(',') if s and s != '-']  # from strategies.toml
+fallback = [s for s in '$SYMBOLS'.split() if s not in market + playbook]
 try:
     data = json.load(sys.stdin)
-    if isinstance(data, list):
+    if isinstance(data, list) and data:
         tradeable = [q for q in data if q.get('symbol','') not in market + playbook]
         def dollar_vol(q):
             t = q.get('turnover')
@@ -86,14 +94,13 @@ try:
                 except (TypeError, ValueError): pass
             try: return float(q.get('volume', 0)) * float(q.get('last', 0))
             except (TypeError, ValueError): return 0.0
-        sorted_q = sorted(tradeable, key=dollar_vol, reverse=True)
-        top5 = [q.get('symbol', '') for q in sorted_q[:5]]
-        print(' '.join(market + playbook + top5))
+        syms = [q.get('symbol', '') for q in sorted(tradeable, key=dollar_vol, reverse=True)]
+        print(' '.join(market + playbook + [s for s in syms if s]))
     else:
-        print(' '.join(market + playbook + ['NVDA.US', 'AAPL.US', 'MSFT.US', 'TSLA.US', 'META.US']))
-except:
-    print(' '.join(market + playbook + ['NVDA.US', 'AAPL.US', 'MSFT.US', 'TSLA.US', 'META.US']))
-" 2>/dev/null || echo "QQQ.US SPY.US NVDA.US AAPL.US MSFT.US TSLA.US META.US")
+        print(' '.join(market + playbook + fallback))
+except Exception:
+    print(' '.join(market + playbook + fallback))
+" 2>/dev/null || echo "QQQ.US SPY.US $SYMBOLS")
 
 # Klines + indicators for top symbols (1h period — backtested as optimal for 30min execution)
 # 手册标的拉 240 根喂 4h 聚合并计算 h4;其余标的维持原 50 根、跳过 h4(--h4-lookback 0)

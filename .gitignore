@@ -32,3 +32,7 @@ backtest/data_1h/*_US.json
 backtest/data_1h_2025/*_US.json
 backtest/data_playbook/
 llm_calls/
+
+# 月报是生成物(scratchpad 里的生成器 + flintrade.db 直算),不进版本库
+reports/flintrade-monthly-*.html
+reports/flintrade-monthly-*.docx

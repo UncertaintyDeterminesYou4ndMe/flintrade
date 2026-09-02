@@ -104,8 +104,10 @@ def to_intent(decision: dict) -> dict | None:
     if not side or not decision.get("symbol"):
         return None
     feats = {}
-    if decision.get("volume_ratio") is not None:
-        feats["volume_ratio"] = decision["volume_ratio"]
+    # volume_ratio 刻意不从 decision 取 —— 它是 risk_gate 的硬门槛判据,由被约束的
+    # 一方(LLM)提供等于把闸门钥匙交给它。2026-09-01:八月三笔成交靠 LLM 自填的
+    # volume_ratio 过闸(其中 USO 那笔标的当轮根本没有指标,0.6 无数据来源)。
+    # 两个 loop 都在 submit 前从真实指标快照回填(见各自 _run_once)。
     if isinstance(decision.get("target2"), (int, float)):
         feats["target2"] = decision["target2"]  # 分批止盈第二目标,executor 落进 position
     return {
@@ -118,6 +120,30 @@ def to_intent(decision: dict) -> dict | None:
         "reason": (decision.get("reasoning") or "")[:1000],
         "features": feats or None,
     }
+
+
+def attach_gate_evidence(intent: dict, data: dict) -> dict:
+    """把 risk_gate 的机械判据从采集数据回填进 intent["features"]。
+
+    判据一律来自真实指标快照,不采信 LLM 自述 —— 见 docs/hard-lessons.md
+    「机械闸门的判据不能由被它约束的一方提供」:
+      volume_ratio   —— gate 的硬门槛,缺失则 fail-closed 拒单
+      h4_confluence  —— binding 手册标的的入场硬条件
+    找不到该标的的指标块就都不附,gate 自会拒(collect.sh 现在全池注入,
+    tradeable 标的正常都有;真缺了说明采集管道坏了,此时不交易是对的)。
+    """
+    ind = next((i for i in (data.get("indicators") or [])
+                if isinstance(i, dict) and i.get("symbol") == intent["symbol"]), None)
+    feats = dict(intent.get("features") or {})
+    vr = (ind or {}).get("volume_ratio")
+    if isinstance(vr, (int, float)):
+        feats["volume_ratio"] = vr
+    h4 = (ind or {}).get("h4")
+    if isinstance(h4, dict):
+        feats["h4_confluence"] = bool(h4.get("confluence"))
+        feats["h4_trend_ok"] = bool(h4.get("trend_ok"))
+    intent["features"] = feats or None
+    return intent
 
 
 def run_once() -> str:
@@ -145,16 +171,7 @@ def _run_once(db: DB) -> str:
     if not intent:
         return f"WAIT — {decision.get('reasoning','')[:80]}"
 
-    # 把 h4 证据从采集数据(不是 LLM 的自述)如实附进 features —— risk_gate 对
-    # binding 手册标的据此机械放行/拒绝。找不到指标块就不附,gate 自会拒。
-    ind = next((i for i in (data.get("indicators") or [])
-                if isinstance(i, dict) and i.get("symbol") == intent["symbol"]), None)
-    h4 = (ind or {}).get("h4")
-    if isinstance(h4, dict):
-        feats = intent.get("features") or {}
-        feats["h4_confluence"] = bool(h4.get("confluence"))
-        feats["h4_trend_ok"] = bool(h4.get("trend_ok"))
-        intent["features"] = feats
+    attach_gate_evidence(intent, data)   # gate 判据从真实指标回填,不信 LLM 自述
 
     prio = load_risk()["priority"]["technical"]
     # 同一周期内同票去重(executor 轮询快于本 loop,正常不会堆积)

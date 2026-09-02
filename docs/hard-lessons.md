@@ -152,6 +152,30 @@ lessons/stats 从全部成交蒸馏(含 event 源),但 recall 曾只注入技术
 (可裁剪与其职责无关的部分,如 watchlist),不注入要写明理由。
 → `agent/producers/loop_event.py:_build_payload`、`agent/prompts/event_intent.md`
 
+### 机械闸门的判据不能由被它约束的一方提供
+`risk_gate` 的规则写在 Python 里,但 `volume_ratio` 的**值**一直取自 producer 的 LLM
+自述(`to_intent` 从 decision 读),缺失时又是放行 —— 规则在代码里,钥匙在被拦的人手上。
+2026-08 三笔开仓在标的完全没有指标的情况下过了闸:USO(模型凭空填 0.6,那一轮 payload
+的 indicators 里根本没有 USO)−$51.45、META(填 1.0)+$38.52、UGL(缺失放行)+$124.55。
+判据一律从采集数据回填(技术面取 payload 指标快照,event 在 submit 前为该标的现算),
+缺失即拒。人工单豁免(与 playbook binding 同一条线);平仓永不受影响 —— `is_exit` 在
+过滤器之前提前放行,否则数据一缺就平不了仓。
+同类检查:凡进 `intents.features` 又被 gate 当判据的字段都要过一遍。`h4_confluence`
+本来就从 indicators 直读(注释写明「不是 LLM 的自述」),`target2` 是 LLM 判断、不是
+闸门判据,可以留在 decision 里。
+→ `agent/risk_gate.py`、`agent/producers/loop_technical.py`、`agent/producers/loop_event.py:_volume_ratio`
+
+### 数据池的截断会静默架空依赖它的风控
+`collect.sh` 按美元成交额取 top5,是 v1 Arena 第一版留下的截断(commit `8a95748`,
+注释只有「take top 5」,没写理由),一路活到 2026-09。后果:2026-08 的 514 轮里
+USO / UGL / AGQ 覆盖率 **0%**、GLD 8%、GOOGL 24%、META 28% —— 而 `volume_ratio`
+硬门槛依赖指标,拿不到指标的标的等于绕过闸门,而它们恰好是当月盈亏最大的几笔。
+行情是自己的代码取的,agent 需要什么就注入什么:全池 16 只实测 collect 94s
+(cadence 1800s,富余 19 倍)、payload +1.6K tokens/轮,没有任何理由截断。
+**改动顺序要紧**:先补池子,再 fail-closed。反过来做,会用一个数据缺口去拒掉
+UGL 那类「拿不到指标但论点成立」的单子。
+→ `scripts/collect.sh` 的 `KLINE_SYMBOLS`
+
 ## 运维 / 导出
 
 ### openrsync 无视 `protect .git`

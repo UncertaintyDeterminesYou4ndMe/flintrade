@@ -164,8 +164,20 @@ class RiskGate:
                 break  # 只看该票最近一次平仓
 
         # 4. 过滤器
+        # volume_ratio 缺失 = fail-closed。2026-09-01 之前是「缺失即放行」,而该值
+        # 又由 producer 的 LLM 自填 —— 两个缺口叠起来,八月三笔开仓在没有任何指标
+        # 来源的情况下过了闸(USO −$51.45 / META +$38.52 / UGL +$124.55)。现在两个
+        # producer 都从真实指标回填(技术面取 payload 快照,event 在 submit 前现算),
+        # 所以「缺失」只意味着采集管道坏了 —— 此时不开仓是对的。
+        # 平仓不受影响:is_exit 在上面的分支里已经提前放行。
+        # 人工单豁免:与 playbook binding 同一条线 —— 人可以 override 策略门槛,
+        # 人手工下单时也不会去填 volume_ratio。source 由 producer 硬编码写死
+        # (technical/event),LLM 影响不到它,所以这不是后门。止损/熔断照常适用。
         floor = self._pct("per_trade", "volume_ratio_floor")
-        if self.volume_ratio is not None and self.volume_ratio < floor:
+        if self.volume_ratio is None:
+            if intent.get("source") != "user":
+                return Verdict(False, reason="缺 volume_ratio(指标数据缺失),fail-closed 拒开仓")
+        elif self.volume_ratio < floor:
             return Verdict(False, reason=f"volume_ratio {self.volume_ratio:.2f} < {floor}")
 
         blackout = self._pct("per_trade", "session_close_blackout_min")

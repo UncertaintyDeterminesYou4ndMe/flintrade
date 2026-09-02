@@ -46,6 +46,35 @@ def _quote(symbol: str) -> dict | None:
         return None
 
 
+def _volume_ratio(symbol: str) -> float | None:
+    """为单个标的现算 1h volume_ratio —— risk_gate 的硬门槛判据必须来自真实指标。
+
+    event 的 payload 里没有 indicators 段(它吃的是 catalyst + quote),且它的标的
+    由新闻决定、不受 collect.sh 的池子约束,所以无法像技术面 loop 那样从采集数据
+    回填。改为在 submit 前为这一个标的现拉 50 根 1h K 线过一遍 indicators.py。
+    成本一次约 6s,event_loop_sec=60,且只在真要下单时才付。
+    2026-09-01 之前这个值取自 LLM 自述:八月 META(1.0)/USO(1.6)/UGL(缺失)三笔
+    都在没有指标来源的情况下过闸,其中 UGL 那笔是当月单回合最大盈利 —— 所以这里
+    是把判据接上真实数据,不是加一道新门槛。取不到返回 None → gate fail-closed。
+    """
+    try:
+        from agent import lb
+        ok, kl, _ = lb.run(["kline", symbol, "--period", "1h", "--count", "50",
+                            "--format", "json"], timeout=25)
+        if not ok or not kl:
+            return None
+        out = subprocess.run(
+            ["python3", str(FLINTRADE_DIR / "scripts" / "indicators.py"),
+             "--symbol", symbol, "--h4-lookback", "0"],
+            input=json.dumps(kl), capture_output=True, text=True, timeout=20)
+        if out.returncode != 0:
+            return None
+        vr = (json.loads(out.stdout) or {}).get("volume_ratio")
+        return float(vr) if isinstance(vr, (int, float)) else None
+    except Exception:
+        return None
+
+
 def gather_catalysts(db: DB | None = None) -> list[dict]:
     """读取 id 大于游标的新 pending 催化剂事件,附上同票近期 news signals,并推进游标。
 
@@ -153,6 +182,13 @@ def _run_once(db: DB) -> str | list[str]:
     intent = to_intent(decision)
     if not intent:
         return [f"WAIT — {decision.get('reasoning', '')[:80]}"]
+
+    # 机械闸门的判据从真实指标回填,不采信 LLM 自述(见 _volume_ratio)。
+    vr = _volume_ratio(intent["symbol"])
+    if vr is not None:
+        feats = intent.get("features") or {}
+        feats["volume_ratio"] = vr
+        intent["features"] = feats
 
     # 把 intent 绑定到具体催化剂(同票优先用 symbol 匹配的事件,否则取首个)。
     sym = intent["symbol"]

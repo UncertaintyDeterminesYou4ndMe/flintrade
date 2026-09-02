@@ -109,7 +109,8 @@ ex = Executor()
 
 # 1) 开多 NVDA(conf=80 >= full_at 75:不触发 confidence 缩放,保持满额算术)
 prod.submit_intent(source="technical", symbol="NVDA.US", side="long",
-                   entry_hint=100.0, stop=98.0, target=110.0, confidence=80, reason="open long")
+                   entry_hint=100.0, stop=98.0, target=110.0, confidence=80, reason="open long",
+                   features={"volume_ratio": 1.0})   # gate 对缺失值 fail-closed
 ex.process_once()
 pos = DB(role="reader").position_for("NVDA.US")
 r = DB(role="reader").get_risk()
@@ -119,7 +120,8 @@ check("开仓扣手续费 equity=9999.2", abs(r["equity"] - 9999.2) < 1e-6, f"eq
 
 # 2) 冲突:持多仓时投做空 → 拒
 sid = prod.submit_intent(source="technical", symbol="NVDA.US", side="short",
-                         entry_hint=100.0, stop=102.0, reason="conflict short")
+                         entry_hint=100.0, stop=102.0, reason="conflict short",
+                         features={"volume_ratio": 1.0})
 ex.process_once()
 row = DB(role="reader").conn.execute("SELECT status,reject_reason FROM intents WHERE id=?", (sid,)).fetchone()
 check("持多仓投做空 → 冲突拒", row["status"] == "rejected" and "翻向" in (row["reject_reason"] or ""),

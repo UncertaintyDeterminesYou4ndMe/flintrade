@@ -300,9 +300,12 @@ check("playbook_for 解析 SNDK", pb is not None and pb["name"] == "h4_confluenc
       and pb["binding"] and pb["t1_pct"] == 5, str(pb))
 check("非手册标的返回 None", playbook_for("AAPL.US") is None)
 
-def fresh_gate():
+def fresh_gate(**kw):
+    # volume_ratio 默认给真实值:binding 这组用例测的是 h4,不该被 vr 的
+    # fail-closed 抢先拒掉。fail-closed 本身在下面第 11 组单独测。
+    kw.setdefault("volume_ratio", 1.0)
     return RiskGate(equity=10000, halted=False, open_positions=[], recent_trades=[],
-                    session="Intraday", minutes_to_close=120)
+                    session="Intraday", minutes_to_close=120, **kw)
 
 base = {"symbol": "MU.US", "side": "long", "source": "technical",
         "entry_hint": 900.0, "stop": 855.0, "confidence": 80}
@@ -317,6 +320,56 @@ v = fresh_gate().evaluate({**base, "side": "short",
 check("binding: long_only 拒做空", not v.approved and "多头" in v.reason, str(v))
 v = fresh_gate().evaluate({**base, "source": "user", "features": None})
 check("binding: 人工单豁免", v.approved, str(v))
+
+# ─────────────────────────────────────────────────────────────────────────
+print("=== 11. volume_ratio 判据:fail-closed + 判据不由 LLM 提供 ===")
+# 2026-09-01:该值原先「缺失即放行」,且由 producer 的 LLM 自填 —— 八月三笔开仓
+# 在没有任何指标来源的情况下过闸。现在缺失即拒,且 producer 从真实指标回填。
+vbase = {"symbol": "AAPL.US", "side": "long", "source": "technical",
+         "entry_hint": 100.0, "stop": 98.0, "confidence": 80}
+v = fresh_gate(volume_ratio=None).evaluate(vbase)
+check("缺 volume_ratio → 拒开仓", not v.approved and "fail-closed" in v.reason, str(v))
+v = fresh_gate(volume_ratio=None).evaluate({**vbase, "source": "user"})
+check("缺 volume_ratio + 人工单 → 放行", v.approved and v.qty > 0, str(v))
+v = fresh_gate(volume_ratio=0.2).evaluate(vbase)
+check("volume_ratio 低于门槛 → 拒", not v.approved and "volume_ratio" in v.reason, str(v))
+v = fresh_gate(volume_ratio=1.0).evaluate(vbase)
+check("volume_ratio 达标 → 放行", v.approved and v.qty > 0, str(v))
+# 平仓永不受 fail-closed 影响(否则数据缺失时会平不了仓)
+gc = RiskGate(equity=10000, halted=False, volume_ratio=None, session="Intraday",
+              minutes_to_close=120, recent_trades=[],
+              open_positions=[{"symbol": "AAPL.US", "side": "long", "qty": 9,
+                               "entry_price": 100.0, "risk_amt": 18.0}])
+v = gc.evaluate({"symbol": "AAPL.US", "side": "close", "source": "risk_monitor"})
+check("缺 volume_ratio 也必须能平仓", v.approved and v.qty == 9, str(v))
+
+# to_intent 不得把 LLM 自述的 volume_ratio 写进 features
+from agent.producers.loop_technical import to_intent, attach_gate_evidence  # noqa: E402
+LLM_DEC = {"action": "BUY", "symbol": "AAPL.US", "entry_hint": 100.0,
+           "stop": 98.0, "confidence": 70, "volume_ratio": 9.9}
+it = to_intent(LLM_DEC)
+check("to_intent 丢弃 LLM 自述的 volume_ratio",
+      not (it.get("features") or {}).get("volume_ratio"), str(it.get("features")))
+
+# 回填只认采集数据:LLM 说 9.9,指标说 0.42 → 必须落 0.42(而不是 9.9)
+DATA = {"indicators": [
+    {"symbol": "AAPL.US", "volume_ratio": 0.42, "h4": None},
+    {"symbol": "MU.US", "volume_ratio": 1.7,
+     "h4": {"confluence": True, "trend_ok": True}}]}
+f = (attach_gate_evidence(to_intent(LLM_DEC), DATA).get("features") or {})
+check("回填采用指标值而非 LLM 自述", f.get("volume_ratio") == 0.42, str(f))
+f2 = (attach_gate_evidence(to_intent({**LLM_DEC, "symbol": "MU.US"}), DATA)
+      .get("features") or {})
+check("手册标的同时回填 h4 证据",
+      f2.get("volume_ratio") == 1.7 and f2.get("h4_confluence") is True, str(f2))
+# 标的不在 indicators → features 不带判据 → gate 会 fail-closed 拒
+f3 = attach_gate_evidence(to_intent({**LLM_DEC, "symbol": "USO.US"}), DATA).get("features")
+check("标的无指标 → 不附判据(交给 gate 拒)", not (f3 or {}).get("volume_ratio"), str(f3))
+v = fresh_gate(volume_ratio=(f3 or {}).get("volume_ratio")).evaluate(
+    {"symbol": "USO.US", "side": "long", "source": "technical",
+     "entry_hint": 100.0, "stop": 98.0, "confidence": 60})
+check("→ 该 intent 被 fail-closed 拒(2026-08 USO 那笔的修复)",
+      not v.approved and "fail-closed" in v.reason, str(v))
 
 # ─────────────────────────────────────────────────────────────────────────
 print()
