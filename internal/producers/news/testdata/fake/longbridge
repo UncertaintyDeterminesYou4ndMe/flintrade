@@ -1,0 +1,10 @@
+#!/bin/bash
+# Fake longbridge for news tests: `news SYM ...` serves $FAKE_NEWS_DIR/SYM.json;
+# a missing file is a CLI failure.
+[ -n "${FAKE_LB_LOG:-}" ] && echo "$*" >> "$FAKE_LB_LOG"
+case "$1" in
+  news)
+    f="$FAKE_NEWS_DIR/$2.json"
+    if [ -f "$f" ]; then cat "$f"; else echo "error: no news for $2" >&2; exit 1; fi ;;
+  *) echo "unknown: $*" >&2; exit 1 ;;
+esac

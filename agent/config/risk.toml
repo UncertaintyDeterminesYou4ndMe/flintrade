@@ -14,6 +14,11 @@ volume_ratio_floor         = 0.3 # volume_ratio < 0.3 拒(旧 §8,回测 +$82)
 session_close_blackout_min = 30  # 距 session 收盘 < 30min 不开新仓(旧 §9,回测 +$6)
 revenge_cooldown_min       = 60  # 同票平亏损单后 60min 内不再开仓(旧 §7 no-revenge 量化)
 min_stop_distance_pct      = 0.1 # entry 与 stop 距离过近(<0.1%)视为无效止损,拒
+adopt_protective_stop_pct  = 3   # reconciler 纳管未追踪仓位时,补的保护性 stop 距离(% of 成本)
+adopt_untracked_drift      = false # reconciler 是否自动纳管「券商有、库里没有」的未追踪仓位。
+                                   # 默认 false = 只告警(add_signal kind=drift),不擅自建仓。
+                                   # 决策回路从未批准的仓位不应被静默计入风控;开为 true 仅在你
+                                   # 确认「丢确认」场景普遍、且愿意接受自动补保护性 stop 时。
 
 [per_trade.confidence_scale]
 # 兑现 producer 契约「The Executor scales risk by it」:对最终批准量的截断式缩放。
@@ -23,11 +28,6 @@ min_stop_distance_pct      = 0.1 # entry 与 stop 距离过近(<0.1%)视为无�
 full_at     = 75
 floor_at    = 50
 floor_scale = 0.5
-adopt_protective_stop_pct  = 3   # reconciler 纳管未追踪仓位时,补的保护性 stop 距离(% of 成本)
-adopt_untracked_drift      = false # reconciler 是否自动纳管「券商有、库里没有」的未追踪仓位。
-                                   # 默认 false = 只告警(add_signal kind=drift),不擅自建仓。
-                                   # 决策回路从未批准的仓位不应被静默计入风控;开为 true 仅在你
-                                   # 确认「丢确认」场景普遍、且愿意接受自动补保护性 stop 时。
 
 [clusters]
 # 相关性簇:取代一仓制提供的「伪分散」。同簇高度相关,合并限额。

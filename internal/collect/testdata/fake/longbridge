@@ -1,0 +1,22 @@
+#!/bin/bash
+# Fake longbridge CLI for collect tests: serves fixtures from $FAKE_LB_DIR.
+D="${FAKE_LB_DIR:?}"
+[ -n "${FAKE_LB_LOG:-}" ] && echo "$*" >> "$FAKE_LB_LOG"
+case "$1" in
+  assets)    cat "$D/assets.json" ;;
+  positions) cat "$D/positions.json" ;;
+  order)     cat "$D/executions.json" ;;
+  trading)   cat "$D/session.json" ;;
+  quote)
+    shift; out="["; sep=""
+    for a in "$@"; do
+      [ "$a" = "--format" ] && break
+      f="$D/quote/$a.json"
+      [ -f "$f" ] && { out="$out$sep$(cat "$f")"; sep=","; }
+    done
+    echo "$out]" ;;
+  kline)
+    f="$D/kline/$2.json"
+    if [ -f "$f" ]; then cat "$f"; else echo '[]'; fi ;;
+  *) echo "unknown: $*" >&2; exit 1 ;;
+esac

@@ -1,0 +1,243 @@
+{
+ "sessions": [
+  {
+   "ts": "2026-11-09T09:00:00Z",
+   "session": "Pre"
+  },
+  {
+   "ts": "2026-11-09T14:29:59Z",
+   "session": "Pre"
+  },
+  {
+   "ts": "2026-11-09T14:30:00Z",
+   "session": "Intraday"
+  },
+  {
+   "ts": "2026-11-09T20:59:00Z",
+   "session": "Intraday"
+  },
+  {
+   "ts": "2026-11-09T21:00:00Z",
+   "session": "Post"
+  },
+  {
+   "ts": "2026-11-10T00:59:59Z",
+   "session": "Post"
+  },
+  {
+   "ts": "2026-11-10T01:00:00Z",
+   "session": "Overnight"
+  },
+  {
+   "ts": "2026-07-10T08:00:00Z",
+   "session": "Pre"
+  },
+  {
+   "ts": "2026-07-10T13:30:00Z",
+   "session": "Intraday"
+  },
+  {
+   "ts": "2026-07-10T20:00:00Z",
+   "session": "Post"
+  },
+  {
+   "ts": "",
+   "session": "Overnight"
+  },
+  {
+   "ts": "garbage",
+   "session": "Overnight"
+  },
+  {
+   "ts": "2026-07-10T08:00:00",
+   "session": "Pre"
+  },
+  {
+   "ts": "2026-07-10T08:00:00+08:00",
+   "session": "Overnight"
+  }
+ ],
+ "gaps": [
+  {
+   "secs": -5,
+   "gap": "in the future"
+  },
+  {
+   "secs": 0,
+   "gap": "just now"
+  },
+  {
+   "secs": 89,
+   "gap": "just now"
+  },
+  {
+   "secs": 90,
+   "gap": "2 minutes"
+  },
+  {
+   "secs": 150,
+   "gap": "2 minutes"
+  },
+  {
+   "secs": 5369,
+   "gap": "89 minutes"
+  },
+  {
+   "secs": 5371,
+   "gap": "90 minutes"
+  },
+  {
+   "secs": 5400,
+   "gap": "1.5 hours"
+  },
+  {
+   "secs": 5000,
+   "gap": "83 minutes"
+  },
+  {
+   "secs": 126000,
+   "gap": "35.0 hours"
+  },
+  {
+   "secs": 129600,
+   "gap": "1.5 days"
+  },
+  {
+   "secs": 259207,
+   "gap": "3.0 days"
+  },
+  {
+   "secs": 34560000,
+   "gap": "400.0 days"
+  }
+ ],
+ "rsi": [
+  {
+   "in": null,
+   "out": "na"
+  },
+  {
+   "in": "",
+   "out": "na"
+  },
+  {
+   "in": "x",
+   "out": "na"
+  },
+  {
+   "in": "[1]",
+   "out": "na"
+  },
+  {
+   "in": "{\"rsi\":null}",
+   "out": "na"
+  },
+  {
+   "in": "{\"rsi\":\"29.9\"}",
+   "out": "<30"
+  },
+  {
+   "in": "{\"rsi\":30}",
+   "out": "30-50"
+  },
+  {
+   "in": "{\"rsi\":49.99}",
+   "out": "30-50"
+  },
+  {
+   "in": "{\"rsi\":50}",
+   "out": "50-70"
+  },
+  {
+   "in": "{\"rsi\":69.9}",
+   "out": "50-70"
+  },
+  {
+   "in": "{\"rsi\":70}",
+   "out": ">70"
+  },
+  {
+   "in": "{\"rsi\":\"abc\"}",
+   "out": "na"
+  },
+  {
+   "in": "{\"a\":1}",
+   "out": "na"
+  }
+ ],
+ "dream_prompts": [
+  {
+   "agg": [
+    {
+     "symbol": "AAA.US",
+     "session": "Intraday",
+     "setup": "technical",
+     "rsi_bucket": "30-50",
+     "n": 12,
+     "win_rate": 0.417,
+     "pl_ratio": 1.35
+    },
+    {
+     "symbol": "BBB.US",
+     "session": "Pre",
+     "setup": "event",
+     "rsi_bucket": "na",
+     "n": 3,
+     "win_rate": null,
+     "pl_ratio": null
+    }
+   ],
+   "trades": [
+    {
+     "id": 7,
+     "ts": "2026-11-06T15:00:00Z",
+     "symbol": "AAA.US",
+     "action": "SELL",
+     "qty": 35,
+     "pnl": -112.48,
+     "source": "technical",
+     "reason": "Stop breach — 止损 \"quoted\" <tag> & co"
+    }
+   ],
+   "today": "2026-11-09",
+   "reviews": [
+    {
+     "symbol": "AAA.US",
+     "thesis_verdict": "wrong",
+     "entry_grade": "ok",
+     "exit_grade": "right",
+     "lesson": "L1"
+    },
+    {
+     "symbol": "BBB.US",
+     "thesis_verdict": null,
+     "entry_grade": null,
+     "exit_grade": null,
+     "lesson": null
+    }
+   ],
+   "blocked": [
+    {
+     "symbol": "NVDA.US",
+     "side": "short",
+     "entry_hint": 220.5,
+     "stop": 224.25,
+     "target": null,
+     "confidence": 66,
+     "blocked_by": "no-revenge 冷却中(NVDA.US 还剩 ~41min)",
+     "at": "2026-11-08T15:00:00Z",
+     "thesis": "BLOCKED-THESIS-MARKER"
+    }
+   ],
+   "prompt": "You are the memory-consolidation (\"dreaming\") layer of an autonomous short-term US-equities paper-trading agent. The market is CLOSED; this is the agent's sleep. Your job is to DISTILL raw trade history into a small, durable, reusable memory — like a human consolidating the day into long-term memory.\n\nToday (ET) is 2026-11-09.\n\nYou are given two inputs:\n\n1. AGGREGATE STATS — rolled-up performance by (symbol, session, setup, rsi_bucket). win_rate is fraction; pl_ratio = avg_win/avg_loss. n is sample size. Treat small-n rows skeptically.\n[{\"symbol\": \"AAA.US\", \"session\": \"Intraday\", \"setup\": \"technical\", \"rsi_bucket\": \"30-50\", \"n\": 12, \"win_rate\": 0.417, \"pl_ratio\": 1.35}, {\"symbol\": \"BBB.US\", \"session\": \"Pre\", \"setup\": \"event\", \"rsi_bucket\": \"na\", \"n\": 3, \"win_rate\": null, \"pl_ratio\": null}]\n\n2. RECENT CLOSED TRADES with the trader's own reasoning text (these reasons are rich — they already contain the trader's reflections). Use them to find patterns, mistakes, and recurring setups.\n[{\"id\": 7, \"ts\": \"2026-11-06T15:00:00Z\", \"symbol\": \"AAA.US\", \"action\": \"SELL\", \"qty\": 35, \"pnl\": -112.48, \"source\": \"technical\", \"reason\": \"Stop breach — 止损 \\\"quoted\\\" <tag> & co\"}]\n\n3. RECENT TRADE POSTMORTEMS — per-trade hindsight verdicts from the postmortem layer (symbol, thesis_verdict, entry_grade, exit_grade, one-line lesson). These are already-distilled per-trade judgments; use them to corroborate or challenge patterns you see in the raw trades above.\n[{\"symbol\": \"AAA.US\", \"thesis_verdict\": \"wrong\", \"entry_grade\": \"ok\", \"exit_grade\": \"right\", \"lesson\": \"L1\"}, {\"symbol\": \"BBB.US\", \"thesis_verdict\": null, \"entry_grade\": null, \"exit_grade\": null, \"lesson\": null}]\n\n4. RECENTLY BLOCKED INTENTS — trade hypotheses from the last few days that the risk gate rejected or that expired unfilled, with the blocking reason. A thesis blocked for a *temporal* reason (cooldown, session blackout, duplicate in-flight order, exposure cap full) was NOT invalidated — it may still be a live setup worth revisiting. A thesis blocked on quality grounds (volume floor, invalid stop) usually is not.\n[{\"symbol\": \"NVDA.US\", \"side\": \"short\", \"entry_hint\": 220.5, \"stop\": 224.25, \"target\": null, \"confidence\": 66, \"blocked_by\": \"no-revenge 冷却中(NVDA.US 还剩 ~41min)\", \"at\": \"2026-11-08T15:00:00Z\", \"thesis\": \"BLOCKED-THESIS-MARKER\"}]\n\nProduce a COMPLETE REWRITE of the agent's memory (NOT an append). This is compression, not accumulation. Output AT MOST 20 durable lessons. Each lesson must be:\n  - durable & semantic (NOT date-bound) — a reusable rule, not \"today I did X\";\n  - grounded in evidence (cite trade ids when possible);\n  - quantified where the stats support it (cite n, win_rate, pl_ratio);\n  - assigned a confidence 0.0-1.0 reflecting sample size and consistency.\n\nSeparately, produce a small WATCHLIST of plans — episodic, expiring notes about concrete setups worth revisiting on waking, NOT durable rules. Source them from: (a) BLOCKED INTENTS whose thesis was stopped by a temporal factor and may still be live; (b) setups the trader mentioned in reasoning but did not take; (c) any explicitly dated catalyst that appears in the inputs. Each plan states the condition to re-check (e.g. \"re-check NVDA short below 220 — blocked by cooldown, thesis not invalidated\") plus tags with the symbol, and an expires_at date (YYYY-MM-DD, typically 1-3 trading days out — a stale watchlist is noise; it is auto-dropped after that date).\n\nRespond with ONE fenced ```json block, exactly this shape, nothing else:\n```json\n{\"lessons\":[{\"text\":\"...\",\"confidence\":0.0,\"evidence\":[1,2],\"tags\":{\"symbol\":\"NVDA.US\",\"session\":\"Intraday\",\"setup\":\"technical\"}}],\"plans\":[{\"text\":\"re-check NVDA short below 220 — cooldown-blocked, thesis not invalidated\",\"expires_at\":\"2026-06-13\",\"tags\":{\"symbol\":\"NVDA.US\"}}]}\n```\nIf there is no evidence for plans, return an empty plans list. Do not exceed 20 lessons.\n\nHARD RULES: (1) Any statistic with n<10 must be phrased as a preliminary observation \"(n=X, low sample)\" and must NEVER be stated as a rule, a win-rate verdict, or an avoid-list entry. (2) Never derive symbol-avoidance rules from n<10. (3) Trades tagged test/outage-degraded/manual are excluded from performance conclusions."
+  },
+  {
+   "agg": [],
+   "trades": [],
+   "today": "2026-07-14",
+   "reviews": [],
+   "blocked": [],
+   "prompt": "You are the memory-consolidation (\"dreaming\") layer of an autonomous short-term US-equities paper-trading agent. The market is CLOSED; this is the agent's sleep. Your job is to DISTILL raw trade history into a small, durable, reusable memory — like a human consolidating the day into long-term memory.\n\nToday (ET) is 2026-07-14.\n\nYou are given two inputs:\n\n1. AGGREGATE STATS — rolled-up performance by (symbol, session, setup, rsi_bucket). win_rate is fraction; pl_ratio = avg_win/avg_loss. n is sample size. Treat small-n rows skeptically.\n[]\n\n2. RECENT CLOSED TRADES with the trader's own reasoning text (these reasons are rich — they already contain the trader's reflections). Use them to find patterns, mistakes, and recurring setups.\n[]\n\nProduce a COMPLETE REWRITE of the agent's memory (NOT an append). This is compression, not accumulation. Output AT MOST 20 durable lessons. Each lesson must be:\n  - durable & semantic (NOT date-bound) — a reusable rule, not \"today I did X\";\n  - grounded in evidence (cite trade ids when possible);\n  - quantified where the stats support it (cite n, win_rate, pl_ratio);\n  - assigned a confidence 0.0-1.0 reflecting sample size and consistency.\n\nSeparately, produce a small WATCHLIST of plans — episodic, expiring notes about concrete setups worth revisiting on waking, NOT durable rules. Source them from: (a) BLOCKED INTENTS whose thesis was stopped by a temporal factor and may still be live; (b) setups the trader mentioned in reasoning but did not take; (c) any explicitly dated catalyst that appears in the inputs. Each plan states the condition to re-check (e.g. \"re-check NVDA short below 220 — blocked by cooldown, thesis not invalidated\") plus tags with the symbol, and an expires_at date (YYYY-MM-DD, typically 1-3 trading days out — a stale watchlist is noise; it is auto-dropped after that date).\n\nRespond with ONE fenced ```json block, exactly this shape, nothing else:\n```json\n{\"lessons\":[{\"text\":\"...\",\"confidence\":0.0,\"evidence\":[1,2],\"tags\":{\"symbol\":\"NVDA.US\",\"session\":\"Intraday\",\"setup\":\"technical\"}}],\"plans\":[{\"text\":\"re-check NVDA short below 220 — cooldown-blocked, thesis not invalidated\",\"expires_at\":\"2026-06-13\",\"tags\":{\"symbol\":\"NVDA.US\"}}]}\n```\nIf there is no evidence for plans, return an empty plans list. Do not exceed 20 lessons.\n\nHARD RULES: (1) Any statistic with n<10 must be phrased as a preliminary observation \"(n=X, low sample)\" and must NEVER be stated as a rule, a win-rate verdict, or an avoid-list entry. (2) Never derive symbol-avoidance rules from n<10. (3) Trades tagged test/outage-degraded/manual are excluded from performance conclusions."
+  }
+ ]
+}

@@ -1,0 +1,56 @@
+# Flintrade 交易标的与执行配置(非风控参数)。
+
+[universe]
+symbols = ["AAPL.US","MSFT.US","GOOGL.US","AMZN.US","NVDA.US","META.US","TSLA.US",
+           "GLD.US","UGL.US","SLV.US","AGQ.US","USO.US",
+           "SNDK.US","MU.US"]        # memory 簇:4h 播放手册标的(2026-08-20 加入)
+market  = ["QQQ.US","SPY.US"]    # regime 指标,不交易
+
+[execution]
+commission_per_share = 0.02
+# outside_rth 由 session 解析:Intraday→RTH_ONLY, Pre/Post→ANY_TIME, Overnight→OVERNIGHT
+# 开仓限价单挂超过此时限未成交 → Executor 撤单、intent 标 expired。
+# 论点在下单那一刻定价,挂得越久成交越可能发生在价格不利穿越限价的时刻(逆向选择);
+# 还会触发在途防线挡掉后续新 intent。0 或负数 = 关闭。平仓单不适用(撤了反而裸奔)。
+entry_order_ttl_min = 45
+
+[models]
+# 档位 → provider/model。业务代码只认 tier(trader/flash),换厂商只改这里。
+# provider 注册表见 agent/llm.py PROVIDERS。内置(API key 一律从环境变量读,不落配置):
+#   claude-cli — 走本机 Claude Code CLI,吃 Claude 订阅(需要装 claude 命令)
+#   kimi-cli   — 走本机 kimi CLI,吃 Kimi Code 订阅 plan(kimi login 后免 key;≠ moonshot 开放平台)
+#   kimi-plan  — Kimi Code plan 的 sk-key 直连(Anthropic 兼容端;可用别人共享的 plan key,无需订阅也无需 kimi CLI) ($KIMI_PLAN_API_KEY)
+#   anthropic  — Anthropic Messages API      ($ANTHROPIC_API_KEY)
+#   openai     — OpenAI                       ($OPENAI_API_KEY)
+#   deepseek   — DeepSeek                     ($DEEPSEEK_API_KEY)
+#   moonshot   — Kimi / 月之暗面              ($MOONSHOT_API_KEY)
+#   openrouter — OpenRouter 聚合              ($OPENROUTER_API_KEY)
+#   ollama     — 本地 Ollama,无 key           (base_url 默认 http://localhost:11434/v1)
+#   openai_compatible — 任意兼容端,必须自带 base_url ($LLM_API_KEY 或自定义 api_key_env)
+# 示例:
+#   trader = { provider = "kimi-cli",   model = "k2" }              # 用 kimi CLI 里的模型别名,同样钉死
+#   trader = { provider = "kimi-plan",  model = "kimi-for-coding" } # plan key 直连;模型还有 kimi-for-coding-highspeed / k3
+#   trader = { provider = "anthropic",  model = "claude-sonnet-5" }
+#   trader = { provider = "deepseek",   model = "deepseek-chat" }
+#   trader = { provider = "moonshot",   model = "kimi-k2-0711-preview" }
+#   trader = { provider = "ollama",     model = "qwen3:32b" }
+#   trader = { provider = "openai_compatible", model = "…", base_url = "https://…/v1", api_key_env = "MY_KEY" }
+# 可选字段:temperature / max_tokens / timeout_sec / extra_headers。
+# 自检:python -m agent.llm check(解析+key 就位);python -m agent.llm ping(真调一次)。
+# 教训:model 留空 = 跟随 claude CLI 的默认模型(用户改默认就跟着变,曾意外烧过 Fable)。
+# 交易系统的模型必须显式钉死,永远不留空;失败不跨模型 fallback —— 宁可 WAIT,不换脑子交易。
+trader = { provider = "claude-cli", model = "claude-sonnet-5" }   # 交易决策:Sonnet(经济档,显式钉死)
+flash  = { provider = "claude-cli", model = "claude-haiku-4-5" }  # dreaming / 复盘:Haiku(最便宜)
+
+[cadence]
+# 各信号源进程的节奏(秒)。技术面频次是「高频旋钮」。
+technical_loop_sec = 1800        # 现状 ~30min;调小即提高交易频次
+event_loop_sec     = 60          # 舆情对延迟敏感,跑得快
+news_poll_sec      = 300         # 资讯抓取
+news_symbol_throttle_sec = 0.5   # 逐标的抓取间隔,避开 longbridge 429 限流
+reconciler_poll_sec = 15         # 对账(无 WebSocket 时的轮询间隔)
+risk_monitor_sec   = 10          # 熔断器扫描
+executor_poll_sec  = 10          # Executor 消费意图队列的轮询间隔
+reflect_check_sec  = 600         # 做梦检查(满足睡眠期+今日未做梦才真做)
+invariants_check_sec = 600       # 账本不变量自检(只读对账,违反只报警不干预)
+heartbeat_stale_sec = 120        # 心跳超过此值视为进程死亡

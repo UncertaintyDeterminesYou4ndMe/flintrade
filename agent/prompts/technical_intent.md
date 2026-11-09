@@ -48,10 +48,12 @@ Before scanning, read `recall` — it is your memory, synthesized during the las
 This is recall, not law: live structure can override a low-confidence lesson. But ignoring a
 high-confidence, high-n lesson is how you repeat a known mistake.
 
-If `similar_history` is present, it lists past trades whose SETUP most resembles the current
-best candidate, each with its realized `pnl`. Treat it as case-based evidence: if setups like
-this one mostly lost, demand more edge or stand down; if they mostly won, it corroborates.
-(Absent when the embedding backend is offline — just proceed without it.)
+If `similar_history` is present, it is your closed-trade record on the current best candidate's
+symbol: `summary` (n, win rate, net/avg pnl), `same_session` (the same figures for trades closed
+in the current session) and `recent` (the latest closes, each with its realized `pnl` and exit
+reason). Treat it as case-based evidence: if trades like this one mostly lost, demand more edge
+or stand down; if they mostly won, it corroborates.
+(Absent when Flintrade has no closed trade on that symbol — just proceed without it.)
 
 # Strategy playbooks (the `playbooks` block — SCOPED, does not touch the rest)
 The payload carries a `playbooks` block: named strategies, each listing its `symbols`,

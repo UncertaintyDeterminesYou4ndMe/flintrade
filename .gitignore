@@ -4,7 +4,8 @@ __pycache__/
 .DS_Store
 autoresearch-results.tsv
 
-# Credentials — NEVER commit. Single source of truth for LONGBRIDGE_* secrets.
+# Credentials — NEVER commit. They live in ~/Library/Application Support/Flintrade/credentials.env;
+# a repo-local flintrade.env is only the last fallback (internal/creds).
 flintrade.env
 flintrade.env.local
 
@@ -13,12 +14,12 @@ flintrade.db
 flintrade.db-wal
 flintrade.db-shm
 
-# venv (memory subsystem deps: lancedb, fastembed)
+# Python-era leftovers, in case an old checkout recreates them
 .venv/
 flintrade_lance/
 .daemon.lock
 
-# launchd plist contains real credentials — template is com.flintrade.daemon.plist.example
+# launchd plist has machine-specific absolute paths (no credentials); export_oss.sh emits a template
 launchd/com.flintrade.daemon.plist
 
 # web SPA build artifacts
@@ -36,3 +37,11 @@ llm_calls/
 # 月报是生成物(scratchpad 里的生成器 + flintrade.db 直算),不进版本库
 reports/flintrade-monthly-*.html
 reports/flintrade-monthly-*.docx
+
+# Go build output
+bin/
+
+# Flintrade.app bundles (go tool mygo build)
+build/
+.mygo/
+cmd/flintrade-app/flintrade-app

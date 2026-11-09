@@ -1,0 +1,117 @@
+{
+ "cases": [
+  {
+   "ctx": {
+    "symbol": "ABC.US",
+    "side": "long",
+    "entry_price": 208.9,
+    "stop": 205.7,
+    "target": 220.0,
+    "exit_price": 203.0,
+    "pnl": -112.48,
+    "hold_minutes": 180,
+    "thesis": "THESIS-ABC",
+    "confidence": 70,
+    "exit_reason": "Stop breach - thesis invalidated"
+   },
+   "metrics": {
+    "exit_kind": "stop",
+    "slippage_vs_stop": 2.7
+   },
+   "prompt": "You are the trade-postmortem (\"cognitive iteration\") layer for an autonomous short-term US-equities paper-trading agent. A trade has just closed. Review it honestly and critically — you are not the trader, you are its skeptical supervisor.\n\nSymbol: ABC.US\nSide: long\nEntry price: 208.9\nStop: 205.7\nTarget: 220.0\nExit price: 203.0\nRealized PnL: -112.48\nHold time: 180 minutes\nExit kind (code-derived from exit reason text): stop\nSlippage vs stop (code-derived; positive = worse than stop, only set when exit_kind=stop): 2.7\n\nEntry thesis / reasoning, in the trader's own words at entry time:\nTHESIS-ABC\n\nEntry confidence stated at entry time (0-100): 70\n\nExit reason, in the trader's own words at exit time:\nStop breach - thesis invalidated\n\nJudge, in hindsight, with the full outcome known:\n- thesis_verdict: was the entry thesis actually correct? correct | partial | wrong | unknowable\n- entry_grade: was the entry itself well-timed/well-structured? good | ok | bad\n- exit_grade: was the exit timing right? early | right | late\n- confidence_justified: true/false — was the stated entry confidence warranted given the setup quality and outcome?\n- lesson: ONE specific, reusable lesson (<=140 chars) — durable and actionable, not just a restatement of the pnl.\n\nRespond with ONE fenced ```json block, exactly this shape, nothing else:\n```json\n{\"thesis_verdict\":\"correct\",\"entry_grade\":\"ok\",\"exit_grade\":\"right\",\"confidence_justified\":false,\"lesson\":\"...\"}\n```"
+  },
+  {
+   "ctx": {
+    "symbol": "S.US",
+    "side": "short",
+    "entry_price": 50,
+    "stop": 52.5,
+    "target": null,
+    "exit_price": 52.75,
+    "pnl": -5.5,
+    "hold_minutes": null,
+    "thesis": "",
+    "confidence": null,
+    "exit_reason": "STOP hit"
+   },
+   "metrics": {
+    "exit_kind": "stop",
+    "slippage_vs_stop": 0.25
+   },
+   "prompt": "You are the trade-postmortem (\"cognitive iteration\") layer for an autonomous short-term US-equities paper-trading agent. A trade has just closed. Review it honestly and critically — you are not the trader, you are its skeptical supervisor.\n\nSymbol: S.US\nSide: short\nEntry price: 50\nStop: 52.5\nTarget: None\nExit price: 52.75\nRealized PnL: -5.5\nHold time: None minutes\nExit kind (code-derived from exit reason text): stop\nSlippage vs stop (code-derived; positive = worse than stop, only set when exit_kind=stop): 0.25\n\nEntry thesis / reasoning, in the trader's own words at entry time:\n(none recorded)\n\nEntry confidence stated at entry time (0-100): None\n\nExit reason, in the trader's own words at exit time:\nSTOP hit\n\nJudge, in hindsight, with the full outcome known:\n- thesis_verdict: was the entry thesis actually correct? correct | partial | wrong | unknowable\n- entry_grade: was the entry itself well-timed/well-structured? good | ok | bad\n- exit_grade: was the exit timing right? early | right | late\n- confidence_justified: true/false — was the stated entry confidence warranted given the setup quality and outcome?\n- lesson: ONE specific, reusable lesson (<=140 chars) — durable and actionable, not just a restatement of the pnl.\n\nRespond with ONE fenced ```json block, exactly this shape, nothing else:\n```json\n{\"thesis_verdict\":\"correct\",\"entry_grade\":\"ok\",\"exit_grade\":\"right\",\"confidence_justified\":false,\"lesson\":\"...\"}\n```"
+  },
+  {
+   "ctx": {
+    "symbol": "T.US",
+    "side": "long",
+    "entry_price": 10.0,
+    "stop": null,
+    "target": 11.0,
+    "exit_price": 11.1,
+    "pnl": 3.3,
+    "hold_minutes": 0,
+    "thesis": null,
+    "confidence": 80.0,
+    "exit_reason": "target reached (stop moved)"
+   },
+   "metrics": {
+    "exit_kind": "target",
+    "slippage_vs_stop": null
+   },
+   "prompt": "You are the trade-postmortem (\"cognitive iteration\") layer for an autonomous short-term US-equities paper-trading agent. A trade has just closed. Review it honestly and critically — you are not the trader, you are its skeptical supervisor.\n\nSymbol: T.US\nSide: long\nEntry price: 10.0\nStop: None\nTarget: 11.0\nExit price: 11.1\nRealized PnL: 3.3\nHold time: 0 minutes\nExit kind (code-derived from exit reason text): target\nSlippage vs stop (code-derived; positive = worse than stop, only set when exit_kind=stop): None\n\nEntry thesis / reasoning, in the trader's own words at entry time:\n(none recorded)\n\nEntry confidence stated at entry time (0-100): 80.0\n\nExit reason, in the trader's own words at exit time:\ntarget reached (stop moved)\n\nJudge, in hindsight, with the full outcome known:\n- thesis_verdict: was the entry thesis actually correct? correct | partial | wrong | unknowable\n- entry_grade: was the entry itself well-timed/well-structured? good | ok | bad\n- exit_grade: was the exit timing right? early | right | late\n- confidence_justified: true/false — was the stated entry confidence warranted given the setup quality and outcome?\n- lesson: ONE specific, reusable lesson (<=140 chars) — durable and actionable, not just a restatement of the pnl.\n\nRespond with ONE fenced ```json block, exactly this shape, nothing else:\n```json\n{\"thesis_verdict\":\"correct\",\"entry_grade\":\"ok\",\"exit_grade\":\"right\",\"confidence_justified\":false,\"lesson\":\"...\"}\n```"
+  },
+  {
+   "ctx": {
+    "symbol": "U.US",
+    "side": "long",
+    "entry_price": 1e-05,
+    "stop": 1.1,
+    "target": 1e+16,
+    "exit_price": 0.1,
+    "pnl": 0.30000000000000004,
+    "hold_minutes": 5,
+    "thesis": "manual",
+    "confidence": 55,
+    "exit_reason": null
+   },
+   "metrics": {
+    "exit_kind": "discretionary",
+    "slippage_vs_stop": null
+   },
+   "prompt": "You are the trade-postmortem (\"cognitive iteration\") layer for an autonomous short-term US-equities paper-trading agent. A trade has just closed. Review it honestly and critically — you are not the trader, you are its skeptical supervisor.\n\nSymbol: U.US\nSide: long\nEntry price: 1e-05\nStop: 1.1\nTarget: 1e+16\nExit price: 0.1\nRealized PnL: 0.30000000000000004\nHold time: 5 minutes\nExit kind (code-derived from exit reason text): discretionary\nSlippage vs stop (code-derived; positive = worse than stop, only set when exit_kind=stop): None\n\nEntry thesis / reasoning, in the trader's own words at entry time:\nmanual\n\nEntry confidence stated at entry time (0-100): 55\n\nExit reason, in the trader's own words at exit time:\n(none recorded)\n\nJudge, in hindsight, with the full outcome known:\n- thesis_verdict: was the entry thesis actually correct? correct | partial | wrong | unknowable\n- entry_grade: was the entry itself well-timed/well-structured? good | ok | bad\n- exit_grade: was the exit timing right? early | right | late\n- confidence_justified: true/false — was the stated entry confidence warranted given the setup quality and outcome?\n- lesson: ONE specific, reusable lesson (<=140 chars) — durable and actionable, not just a restatement of the pnl.\n\nRespond with ONE fenced ```json block, exactly this shape, nothing else:\n```json\n{\"thesis_verdict\":\"correct\",\"entry_grade\":\"ok\",\"exit_grade\":\"right\",\"confidence_justified\":false,\"lesson\":\"...\"}\n```"
+  }
+ ],
+ "parse": [
+  {
+   "text": "```json\n{\"thesis_verdict\":\"wrong\",\"lesson\":\"L1\"}\n```",
+   "out": {
+    "thesis_verdict": "wrong",
+    "lesson": "L1"
+   }
+  },
+  {
+   "text": "pre {\"a\": {\"b\": 1}} post",
+   "out": {
+    "a": {
+     "b": 1
+    }
+   }
+  },
+  {
+   "text": "[1,2]",
+   "out": null
+  },
+  {
+   "text": "no json",
+   "out": null
+  },
+  {
+   "text": "{bad}",
+   "out": null
+  },
+  {
+   "text": "x {\"a\":1} y {\"b\":2} z",
+   "out": null
+  }
+ ]
+}

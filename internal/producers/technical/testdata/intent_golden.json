@@ -1,0 +1,144 @@
+{
+ "indicators": [
+  {
+   "symbol": "AAA.US",
+   "score": 3,
+   "volume_ratio": 0.42,
+   "h4": {
+    "confluence": 1,
+    "trend_ok": []
+   }
+  },
+  {
+   "symbol": "BBB.US",
+   "score": 5,
+   "volume_ratio": 1.37
+  },
+  {
+   "symbol": "CCC.US",
+   "score": 5,
+   "h4": {
+    "confluence": [
+     1
+    ],
+    "trend_ok": "yes"
+   }
+  },
+  {
+   "symbol": "AAA.US",
+   "score": 9,
+   "volume_ratio": 7.7
+  }
+ ],
+ "cases": [
+  {
+   "text": "blah\n```json\n{\"action\":\"BUY\",\"symbol\":\"AAA.US\",\"entry_hint\":10.5,\"stop\":\"9.8\",\"target\":12.25,\"target2\":13.5,\"confidence\":72.5,\"volume_ratio\":9.9,\"reasoning\":\"go 涨\"}\n```",
+   "parsed": true,
+   "intent": {
+    "symbol": "AAA.US",
+    "side": "long",
+    "entry_hint": 10.5,
+    "stop": "9.8",
+    "target": 12.25,
+    "confidence": 72.5,
+    "reason": "go 涨",
+    "features": {
+     "target2": 13.5,
+     "volume_ratio": 0.42,
+     "h4_confluence": true,
+     "h4_trend_ok": false
+    }
+   }
+  },
+  {
+   "text": "{\"action\":\"short\",\"symbol\":\"BBB.US\",\"stop\":20.5,\"confidence\":66,\"reasoning\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+   "parsed": true,
+   "intent": {
+    "symbol": "BBB.US",
+    "side": "short",
+    "entry_hint": null,
+    "stop": 20.5,
+    "target": null,
+    "confidence": 66,
+    "reason": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "features": {
+     "volume_ratio": 1.37
+    }
+   }
+  },
+  {
+   "text": "thinking...\n  {\"action\": \"SELL\", \"symbol\": \"CCC.US\", \"reasoning\": null}\n",
+   "parsed": true,
+   "intent": {
+    "symbol": "CCC.US",
+    "side": "close",
+    "entry_hint": null,
+    "stop": null,
+    "target": null,
+    "confidence": null,
+    "reason": "",
+    "features": {
+     "h4_confluence": true,
+     "h4_trend_ok": true
+    }
+   }
+  },
+  {
+   "text": "{\"action\":\"WAIT\",\"reasoning\":\"nothing\"}",
+   "parsed": true,
+   "intent": null
+  },
+  {
+   "text": "{\"action\":\"BUY\",\"reasoning\":\"no symbol\"}",
+   "parsed": true,
+   "intent": null
+  },
+  {
+   "text": "{\"action\":\"HOLD\",\"symbol\":\"AAA.US\"}",
+   "parsed": true,
+   "intent": null
+  },
+  {
+   "text": "no json at all",
+   "parsed": false,
+   "intent": null
+  },
+  {
+   "text": "```json\n{\"action\":\"BUY\", bad}\n```",
+   "parsed": false,
+   "intent": null
+  },
+  {
+   "text": "{\"action\":\"CLOSE\",\"symbol\":\"ZZZ.US\",\"target2\":\"14\"}",
+   "parsed": true,
+   "intent": {
+    "symbol": "ZZZ.US",
+    "side": "close",
+    "entry_hint": null,
+    "stop": null,
+    "target": null,
+    "confidence": null,
+    "reason": "",
+    "features": null
+   }
+  },
+  {
+   "text": "{\"action\":\"buy\",\"symbol\":\"AAA.US\",\"confidence\":70.5,\"stop\":1.25}",
+   "parsed": true,
+   "intent": {
+    "symbol": "AAA.US",
+    "side": "long",
+    "entry_hint": null,
+    "stop": 1.25,
+    "target": null,
+    "confidence": 70.5,
+    "reason": "",
+    "features": {
+     "volume_ratio": 0.42,
+     "h4_confluence": true,
+     "h4_trend_ok": false
+    }
+   }
+  }
+ ]
+}

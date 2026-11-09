@@ -184,21 +184,6 @@ CREATE TABLE IF NOT EXISTS heartbeats (
     note      TEXT
 );
 
--- ── 语义记忆向量(embedding 存 BLOB,暴力 cosine;规模到了换 LanceDB)──────
--- vec = struct.pack('<%df') 的 float32 紧凑数组。检索时全扫该 kind 做 cosine。
-CREATE TABLE IF NOT EXISTS vectors (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind    TEXT NOT NULL,                  -- trade | news | lesson
-    ref_id  INTEGER,                        -- 指向 trades.id / signals.id / memory_lessons.id
-    text    TEXT NOT NULL,                  -- 被嵌入的原文
-    model   TEXT,                           -- 产出向量的 embedding 模型
-    dim     INTEGER,
-    vec     BLOB NOT NULL,
-    created TEXT NOT NULL,
-    UNIQUE(kind, ref_id)
-);
-CREATE INDEX IF NOT EXISTS idx_vectors_kind ON vectors(kind);
-
 -- ── 杂项 KV(last_dream_date / schema_version 等)──────────────────────────
 CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,

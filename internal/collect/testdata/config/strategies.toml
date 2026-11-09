@@ -1,0 +1,19 @@
+# 策略播放手册 —— 「标的 × 策略」绑定关系的单一真相。
+#
+# 所有消费方都读这里,不允许在别处再写死标的名单或参数:
+#   collect.sh          → 播放手册标的必进 kline 名单;h4 确认窗取各手册最大值
+#   producers/loop_technical → 把手册条款渲染进 LLM payload;把 h4 证据如实附进 intent.features
+#   risk_gate           → binding=true 时机械强制:自动开仓必须携带 h4 共振确认(人工单豁免)
+#   backtest/playbook_test.py → 用同一份参数跑验证,改参数后先重跑它再上线
+#
+# 参数不是拍的:lookback/止盈止损来自 2025-09→2026-08 SNDK/MU 1h 数据的扫描
+# (严格同步触发一年 0-1 信号不可用;lookback=12 两标的均为正)。见 playbook_test.py。
+
+[playbooks.h4_confluence]
+symbols   = ["SNDK.US", "MU.US"]
+binding   = true     # 硬入场条件:gate 拒掉一切缺共振确认的自动开仓;false = 仅作佐证
+long_only = true     # 手册是"上升通道回调买入",不适用于做空
+lookback  = 12       # 三触发的确认窗(4h 根数,≈2 个交易日)
+stop_pct  = 3        # 止损:entry × (1 - 3%)
+t1_pct    = 5        # 第一止盈:entry × (1 + 5%) → 守卫平半仓
+t2_pct    = 8        # 第二止盈:entry × (1 + 8%) → 守卫清剩余

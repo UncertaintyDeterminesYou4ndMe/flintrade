@@ -1,0 +1,537 @@
+{
+  "time": {
+    "utc": "2026-11-09T07:02:19Z",
+    "et": "2026-11-09T02:02:19 EST",
+    "bj": "2026-11-09T15:02:19 CST",
+    "dow": 1,
+    "dow_name": "Mon"
+  },
+  "session": [
+    {
+      "market": "US",
+      "trade_session": [
+        {
+          "begin_time": "09:30:00",
+          "end_time": "16:00:00",
+          "trade_session": "Intraday"
+        }
+      ]
+    }
+  ],
+  "current_session": "Intraday",
+  "outside_rth": "RTH_ONLY",
+  "account": {
+    "balance": [
+      {
+        "currency": "USD",
+        "net_assets": "9164.68",
+        "note": "模拟账户 <paper> & test"
+      }
+    ],
+    "positions": [],
+    "recent_orders": [
+      {
+        "order_id": "0",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "1",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "2",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "3",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "4",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "5",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "6",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "7",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "8",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "9",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "10",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "11",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "12",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "13",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "14",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "15",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "16",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "17",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "18",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      },
+      {
+        "order_id": "19",
+        "symbol": "NVDA.US",
+        "price": "100.5",
+        "quantity": "1"
+      }
+    ]
+  },
+  "quotes": [
+    {
+      "symbol": "AAPL.US",
+      "last": "100",
+      "turnover": "7e9"
+    },
+    {
+      "symbol": "MSFT.US",
+      "last": "400",
+      "volume": "1000000"
+    },
+    {
+      "symbol": "GOOGL.US",
+      "last": "150",
+      "turnover": "abc",
+      "volume": "2000000"
+    },
+    {
+      "symbol": "AMZN.US",
+      "last": 200.0,
+      "turnover": null,
+      "volume": 3000000
+    },
+    {
+      "symbol": "NVDA.US",
+      "last": "100",
+      "turnover": "9e9"
+    },
+    {
+      "symbol": "META.US",
+      "last": "100",
+      "turnover": "400000000"
+    },
+    {
+      "symbol": "TSLA.US",
+      "last": "100",
+      "turnover": "7e9"
+    },
+    {
+      "symbol": "GLD.US",
+      "last": "100",
+      "turnover": "1e9"
+    },
+    {
+      "symbol": "UGL.US",
+      "last": "100",
+      "turnover": "1e7"
+    },
+    {
+      "symbol": "SLV.US",
+      "last": "100",
+      "turnover": "2e8"
+    },
+    {
+      "symbol": "AGQ.US",
+      "last": "100"
+    },
+    {
+      "symbol": "USO.US",
+      "last": "100",
+      "turnover": "3e8"
+    },
+    {
+      "symbol": "QQQ.US",
+      "last": "100",
+      "turnover": "2e10"
+    },
+    {
+      "symbol": "SPY.US",
+      "last": "100",
+      "turnover": "3e10"
+    }
+  ],
+  "indicators": [
+    {
+      "symbol": "QQQ.US",
+      "price": 656.1,
+      "vwap": 678.6329,
+      "ema20": 665.5108,
+      "macd": {
+        "value": -9.250943,
+        "signal": -10.026084,
+        "histogram": 0.775141,
+        "cross": "none"
+      },
+      "rsi": 34.65,
+      "volume_ratio": 0.78,
+      "atr": 9.1383,
+      "score": 5,
+      "max_score": 8,
+      "reasons": [
+        "macd_bullish",
+        "rsi_in_range",
+        "macd_accelerating",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "BUY",
+      "h4": null
+    },
+    {
+      "symbol": "SNDK.US",
+      "price": 835.06,
+      "vwap": 1011.3181,
+      "ema20": 901.332,
+      "macd": {
+        "value": -77.090955,
+        "signal": -84.087558,
+        "histogram": 6.996603,
+        "cross": "none"
+      },
+      "rsi": 27.66,
+      "volume_ratio": 0.58,
+      "atr": 47.7999,
+      "score": 4,
+      "max_score": 8,
+      "reasons": [
+        "macd_bullish",
+        "macd_accelerating",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "WAIT",
+      "h4": {
+        "bars": 74,
+        "close": 835.06,
+        "sma20": 1059.666,
+        "trend_ok": false,
+        "macd": {
+          "dif": -133.926059,
+          "hist": -16.145354,
+          "hist_prev": -20.094436,
+          "above_zero": false,
+          "turned_bull": false
+        },
+        "wr": {
+          "value": 91.1,
+          "recent_max": 99.43,
+          "recovering": false
+        },
+        "mtm": {
+          "value": -240.02,
+          "ma": -315.2532,
+          "golden_cross": true
+        },
+        "confluence": false
+      }
+    },
+    {
+      "symbol": "MU.US",
+      "price": 690.0,
+      "vwap": 784.5078,
+      "ema20": 724.5734,
+      "macd": {
+        "value": -41.809565,
+        "signal": -46.590154,
+        "histogram": 4.780589,
+        "cross": "none"
+      },
+      "rsi": 30.9,
+      "volume_ratio": 0.48,
+      "atr": 30.4756,
+      "score": 5,
+      "max_score": 8,
+      "reasons": [
+        "macd_bullish",
+        "rsi_in_range",
+        "macd_accelerating",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "BUY",
+      "h4": {
+        "bars": 74,
+        "close": 690.0,
+        "sma20": 811.8184,
+        "trend_ok": false,
+        "macd": {
+          "dif": -63.418156,
+          "hist": -12.429958,
+          "hist_prev": -15.045883,
+          "above_zero": false,
+          "turned_bull": false
+        },
+        "wr": {
+          "value": 81.94,
+          "recent_max": 97.87,
+          "recovering": false
+        },
+        "mtm": {
+          "value": -143.59,
+          "ma": -186.0963,
+          "golden_cross": true
+        },
+        "confluence": false
+      }
+    },
+    {
+      "symbol": "NVDA.US",
+      "price": 186.64,
+      "vwap": 197.051,
+      "ema20": 190.9724,
+      "macd": {
+        "value": -4.5895,
+        "signal": -5.085183,
+        "histogram": 0.495683,
+        "cross": "none"
+      },
+      "rsi": 36.2,
+      "volume_ratio": 0.67,
+      "atr": 4.5362,
+      "score": 5,
+      "max_score": 8,
+      "reasons": [
+        "macd_bullish",
+        "rsi_in_range",
+        "macd_accelerating",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "BUY",
+      "h4": null
+    },
+    {
+      "symbol": "AAPL.US",
+      "price": 342.37,
+      "vwap": 344.1589,
+      "ema20": 344.378,
+      "macd": {
+        "value": -0.362542,
+        "signal": -0.107707,
+        "histogram": -0.254835,
+        "cross": "none"
+      },
+      "rsi": 45.79,
+      "volume_ratio": 0.52,
+      "atr": 3.0384,
+      "score": 3,
+      "max_score": 8,
+      "reasons": [
+        "rsi_in_range",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "WAIT",
+      "h4": null
+    },
+    {
+      "symbol": "TSLA.US",
+      "price": 358.22,
+      "vwap": 380.919,
+      "ema20": 364.0996,
+      "macd": {
+        "value": -8.91165,
+        "signal": -10.900433,
+        "histogram": 1.988782,
+        "cross": "none"
+      },
+      "rsi": 38.66,
+      "volume_ratio": 0.57,
+      "atr": 8.7724,
+      "score": 5,
+      "max_score": 8,
+      "reasons": [
+        "macd_bullish",
+        "rsi_in_range",
+        "macd_accelerating",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "BUY",
+      "h4": null
+    },
+    {
+      "symbol": "GLD.US",
+      "price": 372.52,
+      "vwap": 367.091,
+      "ema20": 371.815,
+      "macd": {
+        "value": 1.671362,
+        "signal": 2.23433,
+        "histogram": -0.562968,
+        "cross": "none"
+      },
+      "rsi": 53.75,
+      "volume_ratio": 0.68,
+      "atr": 2.1691,
+      "score": 5,
+      "max_score": 8,
+      "reasons": [
+        "above_vwap",
+        "above_ema20",
+        "macd_bullish",
+        "rsi_in_range",
+        "not_extended"
+      ],
+      "signal": "BUY",
+      "h4": null
+    },
+    {
+      "symbol": "MSFT.US",
+      "price": 342.37,
+      "vwap": 344.1589,
+      "ema20": 344.378,
+      "macd": {
+        "value": -0.362542,
+        "signal": -0.107707,
+        "histogram": -0.254835,
+        "cross": "none"
+      },
+      "rsi": 45.79,
+      "volume_ratio": 0.52,
+      "atr": 3.0384,
+      "score": 3,
+      "max_score": 8,
+      "reasons": [
+        "rsi_in_range",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "WAIT",
+      "h4": null
+    },
+    {
+      "symbol": "META.US",
+      "price": 186.64,
+      "vwap": 197.051,
+      "ema20": 190.9724,
+      "macd": {
+        "value": -4.5895,
+        "signal": -5.085183,
+        "histogram": 0.495683,
+        "cross": "none"
+      },
+      "rsi": 36.2,
+      "volume_ratio": 0.67,
+      "atr": 4.5362,
+      "score": 5,
+      "max_score": 8,
+      "reasons": [
+        "macd_bullish",
+        "rsi_in_range",
+        "macd_accelerating",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "BUY",
+      "h4": null
+    },
+    {
+      "symbol": "GOOGL.US",
+      "price": 358.22,
+      "vwap": 380.919,
+      "ema20": 364.0996,
+      "macd": {
+        "value": -8.91165,
+        "signal": -10.900433,
+        "histogram": 1.988782,
+        "cross": "none"
+      },
+      "rsi": 38.66,
+      "volume_ratio": 0.57,
+      "atr": 8.7724,
+      "score": 5,
+      "max_score": 8,
+      "reasons": [
+        "macd_bullish",
+        "rsi_in_range",
+        "macd_accelerating",
+        "clean_candle",
+        "not_extended"
+      ],
+      "signal": "BUY",
+      "h4": null
+    },
+    {
+      "symbol": "USO.US",
+      "error": "Need >=30 bars, got 10",
+      "score": 0,
+      "signal": "WAIT"
+    }
+  ]
+}

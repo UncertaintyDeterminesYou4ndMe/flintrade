@@ -6,9 +6,9 @@ An autonomous paper-trading agent that dreams, remembers, and reviews its own tr
 
 ## What it is
 
-flintrade is a single-process, multi-loop daemon that paper-trades US equities. Internally it runs as **seven concurrent loops implemented as threads**: three signal producers (technical/Arena, event/catalyst, news) write trade *intents* into a SQLite queue; an **executor** thread consumes that queue through a hard-coded portfolio risk gate before it ever touches a broker; a **reconciler** keeps the book honest against real fills; a **risk monitor** watches for drawdown and can halt trading; and a **dreaming** loop synthesizes memory during market-closed windows.
+flintrade is a single-process, multi-loop daemon that paper-trades US equities. It is written in Go and ships as two binaries: `flintrade-daemon` (the daemon) and `flintrade` (the operator CLI). Internally the daemon runs **eight concurrent loops, one goroutine each**: three signal producers (technical/Arena, event/catalyst, news) write trade *intents* into a SQLite queue; an **executor** consumes that queue through a hard-coded portfolio risk gate before it ever touches a broker; a **reconciler** keeps the book honest against real fills; a **risk monitor** watches for drawdown and can halt trading; a **dreaming** loop synthesizes memory during market-closed windows; and an **invariants** loop audits the ledger read-only.
 
-The core philosophy, carried over from the project's original ["Arena"](docs/agent-architecture.md) design and never relaxed: **the LLM proposes, deterministic code disposes.** The model reasons about direction, sizing rationale, and thesis. It never calls the broker and never writes the books — only the executor does that, and only after every proposal clears a risk gate that is plain Python, not a prompt.
+The core philosophy, carried over from the project's original ["Arena"](docs/agent-architecture.md) design and never relaxed: **the LLM proposes, deterministic code disposes.** The model reasons about direction, sizing rationale, and thesis. It never calls the broker and never writes the books — only the executor places orders, and only after every proposal clears a risk gate that is plain Go code, not a prompt.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ The core philosophy, carried over from the project's original ["Arena"](docs/age
 │ loop_technical   (Arena)       │──intent──┐
 │ loop_event       (catalyst)    │──intent──┤     ┌──────────────┐      ┌───────────┐
 │ news_collector   (news)        │──signal──┤────▶│   Executor    │      │  reflect  │
-│ user_cli         (manual)      │──intent──┘     │ risk gate +   │─────▶│ dreaming  │
+│ bin/flintrade        (manual)      │──intent──┘     │ risk gate +   │─────▶│ dreaming  │
 └───────────────────────────────┘                │ order + write │      │ (flash    │
                                                   └──────┬────────┘      │  tier LLM)│
        ┌──────────────┐   broker fills (after-hours/     │ only caller   └───────────┘
@@ -27,24 +27,27 @@ The core philosophy, carried over from the project's original ["Arena"](docs/age
        │ breaker       │                          ┌──────────────┐
        └──────┬────────┘                          │  flintrade.db    │  single source
               │ FLATTEN intent      ┌───────────┐  │ (SQLite/WAL) │  of truth
-              └────────────────────▶│reconciler │─▶└──────────────┘
-                                    └───────────┘
-       supervisor: launchd KeepAlive + heartbeat watchdog over all loops
+              └────────────────────▶│reconciler │─▶└──────┬───────┘
+                                    └───────────┘         │ read-only
+                                                    ┌─────┴──────┐
+                                                    │ invariants │ ledger audit
+                                                    └────────────┘
+       supervisor: launchd KeepAlive + in-process watchdog (stale loop / fd pressure → exit 70 → restart)
 ```
 
-One rule underlies everything: **producers only ever write to the `intents` table; only the executor writes `positions`, `trades`, and `capital`, and only the executor calls `longbridge buy/sell`.** Every proposal, whether it comes from a technical signal, a news event, or you typing a command, queues through the same risk gate.
+One rule underlies everything: **producers only ever write to the `intents` table; only the executor and the reconciler write `positions`, `trades`, and `orders`, and only the executor calls `longbridge buy/sell`.** Every proposal, whether it comes from a technical signal, a news event, or you typing a command, queues through the same risk gate.
 
 ## Why it's interesting
 
-**Arena invariant & single-writer.** `agent/db.py` is a role-guarded access layer over a WAL-mode SQLite database — each connection is opened with a role (`technical`, `executor`, `reflect`, `reader`, ...) and the layer raises if that role attempts a write it isn't permitted. Only the executor role can write positions/trades/capital. The `intents` table is the message bus between producers and the executor; nothing talks to anything else directly.
+**Arena invariant & single-writer.** `internal/db` is a role-guarded access layer over a WAL-mode SQLite database (schema embedded in the binary) — every handle is opened with a role (`technical`, `executor`, `reflect`, `reader`, ...) and the layer returns an error if that role attempts a write it isn't permitted. Only the executor and reconciler roles can write positions/trades/orders. The `intents` table is the message bus between producers and the executor; nothing talks to anything else directly.
 
-**Portfolio risk gate.** `agent/risk_gate.py` (config in `agent/config/risk.toml`) evaluates every intent through a fixed pipeline before anything is sized: halt check, dedup, no-revenge cooldown, session/volume filters, then risk-based position sizing (`max_risk_pct × equity / stop distance` — not a confidence-scaled guess), correlation-cluster exposure caps (mega-tech / gold / silver / oil buckets so four correlated names don't masquerade as diversification), in-flight order exposure counting (working orders count against limits before they fill), and a circuit breaker that halts all new entries on a daily drawdown threshold. None of this is LLM-mediated — it's plain, hot-reloadable config and code.
+**Portfolio risk gate.** `internal/riskgate` (config in `agent/config/risk.toml`) evaluates every intent through a fixed pipeline before anything is sized: halt check, dedup, no-revenge cooldown, session/volume filters, then risk-based position sizing (`max_risk_pct × equity / stop distance` — not a confidence-scaled guess), correlation-cluster exposure caps (mega-tech / gold / silver / oil buckets so four correlated names don't masquerade as diversification), in-flight order exposure counting (working orders count against limits before they fill), and a circuit breaker that halts all new entries on a daily drawdown threshold. None of this is LLM-mediated — it's plain, hot-reloadable config and code.
 
-**Dreaming memory.** `agent/reflect.py` runs during closed-market windows. It maintains a bounded set of at most 20 lessons (atomic rewrite each cycle, confidence decay over time, archived below a floor) and dated plans that expire on their own. Recall is time-anchored — the agent knows how long it's been since its last dream or last trade before it reasons about anything — and includes semantic recall of similar historical setups via a local vector store (LanceDB + fastembed, on-device ONNX embeddings, no embedding API cost).
+**Dreaming memory.** `internal/reflect` runs during closed-market windows. It maintains a bounded set of at most 20 lessons (atomic rewrite each cycle, confidence decay over time, archived below a floor) and dated plans that expire on their own. Recall is time-anchored — the agent knows how long it's been since its last dream or last trade before it reasons about anything. Each technical decision also gets a `similar_history` block (`internal/memory`): a deterministic SQL read of the agent's own closed trades on the same symbol — overall record, record in the current session, and the latest closes. An earlier embedding-based recall was removed after measurement showed it mostly retrieved that same-symbol history anyway.
 
-**Self-postmortem & calibration.** `agent/postmortem.py` reviews every closed strategy trade with a structured, flash-tier-model verdict: was the thesis right, how were entry/exit timing, how much did it slip against the stop. Hard honesty rules are enforced in the synthesis prompt — a statistic with n<10 can never be phrased as a rule, only as preliminary. The agent's actual track record (sample size, win rate, net P&L) is computed in plain code and injected into every decision as `self_assessment`, so the model can't quietly forget how it's really doing.
+**Self-postmortem & calibration.** `internal/postmortem` reviews every closed strategy trade with a structured, flash-tier-model verdict: was the thesis right, how were entry/exit timing, how much did it slip against the stop. Hard honesty rules are enforced in the synthesis prompt — a statistic with n<10 can never be phrased as a rule, only as preliminary. The agent's actual track record (sample size, win rate, net P&L) is computed in plain code and injected into every decision as `self_assessment`, so the model can't quietly forget how it's really doing.
 
-**Pluggable LLM tiers.** `agent/llm.py` is a declarative provider registry over three wire protocols (Claude CLI subprocess, OpenAI chat/completions, Anthropic Messages API) — Claude, OpenAI, DeepSeek, Kimi, OpenRouter, local Ollama, or any OpenAI-compatible endpoint, all selected per tier in `agent/config/trading.toml` with keys read from env only. A trader tier (frontier model, the real edge) is separated from a flash tier (cheap model for dreaming and postmortems). Failures retry with backoff but never fall back to a different model — a trading system shouldn't swap brains mid-flight. Embeddings default to local fastembed with no external dependency at inference time.
+**Pluggable LLM tiers.** `internal/llm` is a declarative provider registry over three wire protocols (CLI subprocess, OpenAI chat/completions, Anthropic Messages API) — Claude, OpenAI, DeepSeek, Kimi, OpenRouter, local Ollama, or any OpenAI-compatible endpoint, all selected per tier in `agent/config/trading.toml` with keys read from the environment only. A trader tier (frontier model, the real edge) is separated from a flash tier (cheap model for dreaming and postmortems). Failures retry with backoff but never fall back to a different model — a trading system shouldn't swap brains mid-flight. Every real model call is logged verbatim to `llm_calls/YYYYMMDD.jsonl`, so any trade can be reconstructed from exactly what the model saw.
 
 ## Quickstart — one command
 
@@ -52,7 +55,7 @@ One rule underlies everything: **producers only ever write to the `intents` tabl
 git clone https://github.com/UncertaintyDeterminesYou4ndMe/flintrade && cd flintrade && bash scripts/bootstrap.sh
 ```
 
-That's it. On a fresh Mac, `bootstrap.sh` sets up the venv, installs the `longbridge` CLI via Homebrew, initializes the database, checks your LLM provider, and runs a full dry-run smoke test (all seven loops, zero orders, zero LLM cost). It's idempotent and ends by printing exactly what to do next — get free [paper-trading credentials](https://open.longbridge.com), pick an LLM, watch a dry run, then flip `FLINTRADE_DRY_RUN=0`.
+That's it. On a Mac with Go ≥ 1.27 (`brew install go`), `bootstrap.sh` installs the `longbridge` CLI via Homebrew, builds `bin/flintrade` and `bin/flintrade-daemon`, puts a credentials template outside the repo (`~/Library/Application Support/Flintrade/credentials.env`, mode 0600), runs a full dry-run smoke test (all eight loops once against a throwaway database, zero orders, zero LLM cost), and finishes with the read-only self-check `bin/flintrade check`. It's idempotent and ends by printing exactly what to do next — get free [paper-trading credentials](https://open.longbridge.com), pick an LLM, watch a dry run, then flip `FLINTRADE_DRY_RUN=0`.
 
 **Using an AI coding agent?** Paste this into Claude Code / any coding agent:
 
@@ -72,38 +75,45 @@ No hard dependency on any one vendor. The default is the local `claude` CLI (no 
 | `anthropic` | Anthropic Messages API | `ANTHROPIC_API_KEY` |
 | `openai` / `deepseek` / `moonshot` (Kimi open platform, pay-per-token) / `openrouter` | OpenAI chat/completions | `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / … |
 | `ollama` | local, no key | — |
-| `openai_compatible` | any compatible endpoint (`base_url` in config) | configurable |
+| `openai_compatible` | any compatible endpoint (`base_url` in config) | `LLM_API_KEY` or `api_key_env` in config |
 
-Subscription plans (Claude Code, Kimi Code) are wired through their own CLIs in headless mode — the CLI owns auth and plan billing, flintrade just runs it as a subprocess. Note `kimi-cli` (subscription) and `moonshot` (open-platform API key) are different providers on purpose.
+Subscription plans (Claude Code, Kimi Code) are wired through their own CLIs in headless mode — the CLI owns auth and plan billing, flintrade just runs it as a subprocess. Note `kimi-cli` (subscription) and `moonshot` (open-platform API key) are different providers on purpose. API keys go in the credentials file next to the broker keys; the daemon loads it on start.
 
 ```bash
-.venv/bin/python -m agent.llm check   # verify resolution + keys, no cost
-.venv/bin/python -m agent.llm ping    # one real round-trip per tier
+bin/flintrade check   # verify credentials, config, tier resolution + keys — read-only, no cost
+bin/flintrade ping    # one real round-trip per tier (paid)
 ```
 
 Two tiers: `trader` (decisions — use a frontier model) and `flash` (dreaming/postmortems — use the cheapest thing you trust). Deliberate design choice: **no automatic cross-model fallback** — if the configured model fails after retries, the agent WAITs instead of trading with a different brain.
 
-`FLINTRADE_DRY_RUN=1` is the default posture in `flintrade.env.example` — the daemon runs its full decision loop and simulates fills without ever calling the broker. Only flip it to `0` once you've watched it run.
+`FLINTRADE_DRY_RUN=1` is the default posture in `flintrade.env.example` (and an unset `FLINTRADE_DRY_RUN` also means dry run) — the daemon runs its full decision loop and simulates fills without ever calling the broker. Only flip it to `0` once you've watched it run. Values in the credentials file override the shell environment; `bin/flintrade-daemon --dry-run` forces dry run regardless of the file.
 
-For a persistent deployment, see `launchd/com.flintrade.daemon.plist.example` as a template for running the daemon under launchd (macOS) with auto-restart.
+For a persistent deployment, see `launchd/com.flintrade.daemon.plist.example` as a template for running the daemon under launchd (macOS) with auto-restart; `launchd/README.md` has the install steps.
 
-Two operational views:
+Three operational views:
 
 ```bash
-bash scripts/agentctl.sh user_cli status   # CLI status view (positions, risk state, recent intents)
-python3 dashboard/server.py                # web dashboard at http://localhost:8383
+bin/flintrade                    # CLI status view (loops, risk state, positions, pending intents, recent trades)
+python3 dashboard/server.py  # web dashboard at http://localhost:8383 (system python3, no packages)
+(cd cmd/flintrade-app && go tool mygo build -skip-dmg) && cp -R build/darwin-arm64/Flintrade.app /Applications/
 ```
+
+Flintrade.app (macOS, native, built with [mygo](https://github.com/egoist/mygo)) lives in the menu bar with today's PnL and notifies when the daemon stops, trading halts or the token is about to expire. Its window shows equity, positions, per-symbol records, trades, intents, lessons and per-trade reviews; it edits `trading.toml`, `strategies.toml` and the prompts (validated strictly before saving, `risk.toml` stays read-only) and replaces Longbridge credentials after verifying them with one read-only broker call. It reads the database read-only and never orders; quitting it does not stop trading.
 
 ## Repo map
 
 | Path | What's there |
 |---|---|
-| `agent/` | The daemon — producers, executor, risk gate, reconciler, risk monitor, dreaming/postmortem, DB layer, LLM access layer |
-| `scripts/` | Data collectors and operational CLI (`agentctl.sh`) |
-| `backtest/` | Backtest engines, factor experiments, ML gate research |
+| `cmd/` | `flintrade-daemon` (all loops, one process), `flintrade` (status, manual intents, halt/resume, check, ping) and `flintrade-app` (the menu bar app) |
+| `internal/` | The daemon's packages — producers, executor, risk gate, reconciler, risk monitor, settlement, broker, dreaming/postmortem, memory, indicators, DB layer, LLM access layer, credentials |
+| `agent/` | Config (`agent/config/*.toml`) and producer prompts (`agent/prompts/*.md`); the remaining Python files are read-only helpers for the dashboard |
+| `scripts/` | `bootstrap.sh`, and `indicators.py` for the backtests (kept bit-identical with `internal/indicators` by a golden test) |
+| `backtest/` | Backtest engines, factor experiments, ML gate research (Python, stdlib only) |
 | `dashboard/` | Read-only web UI over the trade log and database |
 | `docs/` | Architecture notes |
 | `launchd/` | macOS launchd deployment template |
+
+The web dashboard and the backtests are still Python; the backtests will be ported to Go, after which `risk.toml` becomes editable in the app. Nothing on the live trading path runs Python.
 
 ## Safety & disclaimer
 

@@ -42,15 +42,6 @@ entry_order_ttl_min = 45
 trader = { provider = "claude-cli", model = "claude-sonnet-5" }   # 交易决策:Sonnet(经济档,显式钉死)
 flash  = { provider = "claude-cli", model = "claude-haiku-4-5" }  # dreaming / 复盘:Haiku(最便宜)
 
-[embeddings]
-# fastembed:进程内本地 ONNX 小模型(同那个 app 的 MiniLM/BGE/E5),零 API 成本。
-# 首次 embed 会自动下载权重(~90MB)。装在 .venv 里(lancedb + fastembed)。
-# 可换:BAAI/bge-small-en-v1.5、BAAI/bge-small-zh-v1.5、intfloat/multilingual-e5-large 等。
-# 也支持 provider="ollama"(base_url=http://localhost:11434)或 openai 兼容端。
-provider = "fastembed"
-model    = "sentence-transformers/all-MiniLM-L6-v2"
-base_url = "http://localhost:11434"   # 仅 provider=ollama 时用
-
 [cadence]
 # 各信号源进程的节奏(秒)。技术面频次是「高频旋钮」。
 technical_loop_sec = 1800        # 现状 ~30min;调小即提高交易频次

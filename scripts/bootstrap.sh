@@ -3,10 +3,13 @@
 #
 #   bash scripts/bootstrap.sh
 #
-# Idempotent: safe to re-run. Never places real orders and never needs
-# credentials — everything below runs in dry-run mode. Designed so that a
-# human OR a coding agent can go from `git clone` to a passing smoke test
-# without reading anything else. Next steps are printed at the end.
+# Idempotent: safe to re-run. Never places orders, never calls a model, and
+# never needs credentials: the smoke test runs every loop once in dry-run
+# mode with model calls stubbed, against a throwaway root (temp database,
+# temp logs, empty credentials) so it cannot touch an existing install.
+# Designed so that a human OR a coding agent can go from `git clone` to a
+# passing smoke test without reading anything else. Next steps are printed
+# at the end.
 set -uo pipefail
 
 FLINTRADE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,38 +22,28 @@ warn()  { printf '%s %s\n' "$WARN" "$1"; }
 
 FAILED=0
 
-# ── 1. Python ≥ 3.10 ─────────────────────────────────────────────────────
-step "1/6 Python"
-PY="$(command -v python3 || true)"
-if [ -z "$PY" ]; then
-  echo "python3 not found. Install it first:  brew install python@3.12" >&2
+# ── 1. Go (version pinned by go.mod) ─────────────────────────────────────
+step "1/6 Go"
+GOMIN="$(awk '/^go /{print $2; exit}' go.mod)"
+if ! command -v go >/dev/null 2>&1; then
+  echo "go not found. Install it first:  brew install go   (need >= $GOMIN)" >&2
   exit 1
 fi
-PYVER="$($PY -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
-if ! $PY -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)'; then
-  echo "python3 is $PYVER; need >= 3.10.  brew install python@3.12" >&2
+# Run inside the module: with GOTOOLCHAIN=auto an older go fetches the
+# go.mod toolchain itself; with GOTOOLCHAIN=local it fails here, clearly.
+if ! GOVER="$(go env GOVERSION 2>/dev/null)"; then
+  go env GOVERSION >/dev/null   # repeat, letting the error through
+  echo "go is too old for go.mod (needs >= $GOMIN):  brew upgrade go" >&2
   exit 1
 fi
-ok "python3 $PYVER"
-
-# ── 2. venv + optional semantic-memory deps ──────────────────────────────
-step "2/6 virtualenv"
-if [ ! -x .venv/bin/python ]; then
-  $PY -m venv .venv
+if ! printf '%s\n%s\n' "go$GOMIN" "$GOVER" | sort -V -C; then
+  echo "go is $GOVER; need >= $GOMIN.  brew upgrade go" >&2
+  exit 1
 fi
-ok ".venv ready"
-# lancedb + fastembed power semantic recall of similar historical trades.
-# They are OPTIONAL — the agent degrades gracefully without them.
-if .venv/bin/python -c 'import lancedb, fastembed' 2>/dev/null; then
-  ok "semantic memory deps already installed"
-elif .venv/bin/pip install -q lancedb fastembed 2>/dev/null; then
-  ok "installed lancedb + fastembed (semantic memory ON)"
-else
-  warn "lancedb/fastembed install failed — continuing WITHOUT semantic memory (optional)"
-fi
+ok "$GOVER"
 
-# ── 3. longbridge CLI (broker: quotes + paper-trading orders) ────────────
-step "3/6 longbridge CLI"
+# ── 2. longbridge CLI (broker: quotes + paper-trading orders) ────────────
+step "2/6 longbridge CLI"
 if command -v longbridge >/dev/null 2>&1; then
   ok "longbridge CLI: $(longbridge --version 2>/dev/null | head -1)"
 elif command -v brew >/dev/null 2>&1; then
@@ -67,49 +60,101 @@ else
   FAILED=1
 fi
 
-# ── 4. config files ───────────────────────────────────────────────────────
-step "4/6 config"
-if [ ! -f flintrade.env ]; then
-  cp flintrade.env.example flintrade.env
-  ok "created flintrade.env from template (FLINTRADE_DRY_RUN=1 — safe default)"
+# ── 3. build ──────────────────────────────────────────────────────────────
+step "3/6 build"
+if go build -o bin/ ./cmd/... && [ -x bin/flintrade ] && [ -x bin/flintrade-daemon ]; then
+  ok "bin/flintrade + bin/flintrade-daemon built"
 else
-  ok "flintrade.env exists (kept as-is)"
+  echo "go build failed — nothing below can run without the binaries" >&2
+  exit 1
 fi
 mkdir -p logs
-.venv/bin/python -c "from agent.db import init_db; init_db()" && ok "flintrade.db schema ready"
 
-# ── 5. LLM provider check ────────────────────────────────────────────────
-step "5/6 LLM provider"
-# Default = local `claude` CLI (Claude Code). Any OpenAI-compatible or
-# Anthropic API provider works too — edit agent/config/trading.toml [models]
-# and export the matching key in flintrade.env. Details: python -m agent.llm check
-if .venv/bin/python -m agent.llm check; then
-  ok "LLM tiers resolved"
+# ── 4. credentials file (template only — never real values) ──────────────
+# Same lookup order as internal/creds: $FLINTRADE_CREDENTIALS, else the
+# Application Support file if it exists, else <repo>/flintrade.env. A fresh
+# install gets the Application Support file: outside the repo, so git,
+# exports and repo-reading agents never see it. An existing file is never
+# overwritten — creating one would shadow it with blank values.
+step "4/6 credentials file"
+APPSUPPORT_CRED="$HOME/Library/Application Support/Flintrade/credentials.env"
+if [ -n "${FLINTRADE_CREDENTIALS:-}" ]; then
+  CRED="$FLINTRADE_CREDENTIALS"
+elif [ -f "$APPSUPPORT_CRED" ]; then
+  CRED="$APPSUPPORT_CRED"
+elif [ -f flintrade.env ]; then
+  CRED="$FLINTRADE_DIR/flintrade.env"
 else
-  warn "LLM provider not ready — pick one in agent/config/trading.toml [models]:"
-  echo '     claude-cli (default, needs the `claude` CLI) | anthropic | openai | deepseek | moonshot | openrouter | ollama'
-  echo '     then put the API key in flintrade.env and re-run: .venv/bin/python -m agent.llm check'
+  CRED="$APPSUPPORT_CRED"
+fi
+if [ -f "$CRED" ]; then
+  ok "kept existing $CRED"
+else
+  CRED_DIR="$(dirname "$CRED")"
+  [ -d "$CRED_DIR" ] || mkdir -p -m 700 "$CRED_DIR"
+  install -m 600 flintrade.env.example "$CRED"
+  ok "created $CRED from flintrade.env.example (blank keys, FLINTRADE_DRY_RUN=1)"
+fi
+PERM="$(stat -f '%Lp' "$CRED")"
+case "$PERM" in
+  600|400) ok "permissions $PERM" ;;
+  *) chmod 600 "$CRED" && ok "permissions were $PERM — tightened to 600" ;;
+esac
+
+# ── 5. dry-run smoke test (no orders, no LLM calls, isolated root) ───────
+step "5/6 smoke test"
+SMOKE_LOG="$FLINTRADE_DIR/logs/bootstrap-smoke.log"
+SMOKE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/flintrade-smoke.XXXXXX")"
+trap 'rm -rf "$SMOKE_ROOT"' EXIT
+# The daemon finds its root via FLINTRADE_DIR (the dir holding agent/config);
+# config and prompts are linked in read-only, everything it writes lands in
+# the temp root. An empty credentials file keeps any real one out of it.
+mkdir -p "$SMOKE_ROOT/agent"
+ln -s "$FLINTRADE_DIR/agent/config"  "$SMOKE_ROOT/agent/config"
+ln -s "$FLINTRADE_DIR/agent/prompts" "$SMOKE_ROOT/agent/prompts"
+install -m 600 /dev/null "$SMOKE_ROOT/credentials.env"
+FLINTRADE_DIR="$SMOKE_ROOT" \
+FLINTRADE_DB="$SMOKE_ROOT/flintrade.db" \
+FLINTRADE_CREDENTIALS="$SMOKE_ROOT/credentials.env" \
+FLINTRADE_LLM_LOG_DIR="$SMOKE_ROOT/llm_calls" \
+FLINTRADE_LLM_DRY=1 \
+  bin/flintrade-daemon --once --dry-run >"$SMOKE_LOG" 2>&1
+SMOKE_RC=$?
+RAN=$(grep -c 'ran once$' "$SMOKE_LOG" 2>/dev/null || true)
+BAD=$(grep '\[daemon\] ✗' "$SMOKE_LOG" 2>/dev/null | sed -E 's/.*✗ ([a-z_]+):.*/\1/' | tr '\n' ' ')
+if [ "$SMOKE_RC" -eq 0 ]; then
+  ok "flintrade-daemon --once --dry-run: all $RAN loops ran clean (log: $SMOKE_LOG)"
+elif grep -q '\[daemon\] --once' "$SMOKE_LOG" 2>/dev/null; then
+  ok "flintrade-daemon --once --dry-run: $RAN loops clean; degraded: ${BAD}— normal before broker credentials are filled in (log: $SMOKE_LOG)"
+else
+  warn "smoke test crashed before running the loops — inspect $SMOKE_LOG"
+  tail -5 "$SMOKE_LOG" || true
   FAILED=1
 fi
 
-# ── 6. dry-run smoke test (no orders, no LLM cost, isolated temp db) ─────
-step "6/6 smoke test"
-SMOKE_LOG=/tmp/flintrade_smoke.log
-SMOKE_DB=/tmp/flintrade_smoke.db
-rm -f "$SMOKE_DB" "$SMOKE_DB"-wal "$SMOKE_DB"-shm
-FLINTRADE_DB="$SMOKE_DB" .venv/bin/python -c "from agent.db import init_db; init_db()" >/dev/null 2>&1
-if FLINTRADE_DB="$SMOKE_DB" FLINTRADE_DRY_RUN=1 FLINTRADE_LLM_DRY=1 \
-   .venv/bin/python -m agent.daemon --once >"$SMOKE_LOG" 2>&1; then
-  ERRS=$(grep -c '✗' "$SMOKE_LOG" 2>/dev/null || true)
-  if [ "${ERRS:-0}" -eq 0 ]; then
-    ok "daemon --once: all 7 loops ran clean (log: $SMOKE_LOG)"
-  else
-    ok "daemon --once ran; $ERRS loop(s) degraded — normal before broker credentials are filled in (log: $SMOKE_LOG)"
-  fi
-else
-  warn "smoke test crashed — inspect $SMOKE_LOG"
-  tail -5 "$SMOKE_LOG" || true
+# ── 6. self-check (read-only) ────────────────────────────────────────────
+step "6/6 bin/flintrade check"
+# A fresh clone has no ledger yet (the daemon creates flintrade.db on its first
+# real start), so the ledger section reads the smoke-test database instead.
+CHECK_ENV=(FLINTRADE_CREDENTIALS="$CRED")
+if [ ! -f "${FLINTRADE_DB:-$FLINTRADE_DIR/flintrade.db}" ]; then
+  CHECK_ENV+=(FLINTRADE_DB="$SMOKE_ROOT/flintrade.db")
+fi
+CHECK_OUT="$(env "${CHECK_ENV[@]}" bin/flintrade check 2>&1)"
+echo "$CHECK_OUT"
+# Missing/blank Longbridge keys are expected until step 1 below; anything
+# else marked ✗ (config, models, ledger) is a real problem.
+CRED_FAILS=$(printf '%s\n' "$CHECK_OUT" | grep '✗' | grep -c 'LONGBRIDGE_' || true)
+OTHER_FAILS=$(printf '%s\n' "$CHECK_OUT" | grep '✗' | grep -vc 'LONGBRIDGE_' || true)
+if [ "${OTHER_FAILS:-0}" -gt 0 ]; then
+  warn "$OTHER_FAILS check(s) failed above — for models: pick a provider in agent/config/trading.toml [models]"
+  echo '     claude-cli (default, needs the `claude` CLI) | kimi-cli | kimi-plan | anthropic | openai | deepseek | moonshot | openrouter | ollama | openai_compatible'
+  echo "     put any API key in $CRED and re-run: bin/flintrade check"
   FAILED=1
+elif [ "${CRED_FAILS:-0}" -gt 0 ]; then
+  ok "config and models OK; Longbridge credentials not filled in yet (step 1 below)"
+else
+  ok "self-check passed"
 fi
 
 # ── done ──────────────────────────────────────────────────────────────────
@@ -119,19 +164,27 @@ if [ "$FAILED" -eq 0 ]; then
 else
   echo "Bootstrap finished WITH WARNINGS (see ! lines above)."
 fi
-cat <<'NEXT'
+PLIST_SRC="launchd/com.flintrade.daemon.plist.example"
+[ -f "$PLIST_SRC" ] || PLIST_SRC="launchd/com.flintrade.daemon.plist"
+cat <<NEXT
 
 Next steps (in order, each optional until the last):
   1. Paper-trading credentials (free): https://open.longbridge.com
-     → fill LONGBRIDGE_APP_KEY / APP_SECRET / ACCESS_TOKEN in flintrade.env
+     → fill LONGBRIDGE_APP_KEY / APP_SECRET / ACCESS_TOKEN in:
+       $CRED
+     → verify:  bin/flintrade check
   2. Pick your LLM in agent/config/trading.toml [models]  (default: claude CLI)
-     → verify:  .venv/bin/python -m agent.llm check
-  3. Try one real cycle (still no orders — FLINTRADE_DRY_RUN=1 in flintrade.env):
-     → set -a; source flintrade.env; set +a; .venv/bin/python -m agent.daemon --once
-  4. Run it for real (paper account, real orders, no real money):
-     → set FLINTRADE_DRY_RUN=0 in flintrade.env
-     → cp launchd/com.flintrade.daemon.plist.example ~/Library/LaunchAgents/com.flintrade.daemon.plist
-       (edit paths + credentials inside), then: launchctl load ~/Library/LaunchAgents/com.flintrade.daemon.plist
-  5. Watch it: python3 dashboard/server.py  →  http://localhost:8383
+     → API keys go in the same credentials file
+     → verify:  bin/flintrade check  (free),  bin/flintrade ping  (one paid call per tier)
+  3. Try one real cycle — real model calls, still no orders; creates flintrade.db:
+     → bin/flintrade-daemon --once --dry-run
+  4. Run it persistently under launchd (dry run until you say otherwise):
+     → sed -e "s|/path/to/flintrade|\$PWD|g" -e "s|/path/to/home|\$HOME|g" \\
+           $PLIST_SRC > ~/Library/LaunchAgents/com.flintrade.daemon.plist
+     → launchctl bootstrap gui/\$(id -u) ~/Library/LaunchAgents/com.flintrade.daemon.plist
+     Then, to place real orders on the paper account (no real money):
+     → set FLINTRADE_DRY_RUN=0 in the credentials file
+     → launchctl kickstart -k gui/\$(id -u)/com.flintrade.daemon
+  5. Watch it: bin/flintrade   ·   python3 dashboard/server.py  →  http://localhost:8383
 NEXT
 exit "$FAILED"

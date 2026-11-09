@@ -1,0 +1,173 @@
+{
+ "keywords": [
+  {
+   "title": "NVDA Q3 Earnings beat",
+   "kws": [
+    "earnings"
+   ]
+  },
+  {
+   "title": "英伟达 财报 超预期",
+   "kws": [
+    "财报",
+    "预期"
+   ]
+  },
+  {
+   "title": "SEC probe widens",
+   "kws": [
+    "sec",
+    "probe"
+   ]
+  },
+  {
+   "title": "Apple announces new iPhone",
+   "kws": []
+  },
+  {
+   "title": "Analyst UPGRADE to buy; price target raised",
+   "kws": [
+    "upgrade",
+    "price target"
+   ]
+  },
+  {
+   "title": "",
+   "kws": []
+  },
+  {
+   "title": "Section 8 housing",
+   "kws": [
+    "sec"
+   ]
+  },
+  {
+   "title": "CEO resigns amid lawsuit",
+   "kws": [
+    "lawsuit",
+    "resign",
+    "ceo"
+   ]
+  },
+  {
+   "title": "公司宣布回购并分红",
+   "kws": [
+    "回购",
+    "分红"
+   ]
+  }
+ ],
+ "items": [
+  {
+   "in": {
+    "id": 123,
+    "title": "Earnings beat",
+    "published_at": 1731100000,
+    "url": "u1"
+   },
+   "out": {
+    "id": 123,
+    "title": "Earnings beat",
+    "published_at": 1731100000,
+    "url": "u1",
+    "_id": "123",
+    "_title": "Earnings beat",
+    "_published_at": 1731100000,
+    "_url": "u1"
+   },
+   "key": "123"
+  },
+  {
+   "in": {
+    "news_id": "",
+    "article_id": "a-9",
+    "headline": "Downgrade",
+    "time": "2026-11-09T01:00:00Z",
+    "link": "l"
+   },
+   "out": {
+    "news_id": "",
+    "article_id": "a-9",
+    "headline": "Downgrade",
+    "time": "2026-11-09T01:00:00Z",
+    "link": "l",
+    "_id": "a-9",
+    "_title": "Downgrade",
+    "_published_at": "2026-11-09T01:00:00Z",
+    "_url": "l"
+   },
+   "key": "a-9"
+  },
+  {
+   "in": {
+    "title": "",
+    "name": "fallback name",
+    "date": ""
+   },
+   "out": {
+    "title": "",
+    "name": "fallback name",
+    "date": "",
+    "_id": null,
+    "_title": "fallback name",
+    "_published_at": null,
+    "_url": null
+   },
+   "key": "fallback name|"
+  },
+  {
+   "in": {
+    "uuid": null,
+    "x": [
+     1,
+     2
+    ],
+    "title": "t only"
+   },
+   "out": {
+    "uuid": null,
+    "x": [
+     1,
+     2
+    ],
+    "title": "t only",
+    "_id": null,
+    "_title": "t only",
+    "_published_at": null,
+    "_url": null
+   },
+   "key": "t only|"
+  },
+  {
+   "in": {
+    "id": 1.5,
+    "_id": "old",
+    "title": null,
+    "ts": 0
+   },
+   "out": {
+    "id": 1.5,
+    "_id": "1.5",
+    "title": null,
+    "ts": 0,
+    "_title": "",
+    "_published_at": 0,
+    "_url": null
+   },
+   "key": "1.5"
+  },
+  {
+   "in": {
+    "foo": "bar"
+   },
+   "out": {
+    "foo": "bar",
+    "_id": null,
+    "_title": "",
+    "_published_at": null,
+    "_url": null
+   },
+   "key": null
+  }
+ ]
+}
