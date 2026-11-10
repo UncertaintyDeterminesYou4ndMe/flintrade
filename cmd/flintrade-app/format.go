@@ -24,32 +24,28 @@ func commas(n int64) string {
 	return b.String()
 }
 
-// money: $9,140.92 (negative as −$23.76).
+// money: $9,140.92 (negative as −$23.76). Rounding comes first, so
+// −0.004 is $0.00, not −$0.00.
 func money(v float64) string {
-	sign := ""
-	if v < 0 {
-		sign, v = "−", -v
-	}
 	cents := int64(math.Round(v * 100))
+	sign := ""
+	if cents < 0 {
+		sign, cents = "−", -cents
+	}
 	return fmt.Sprintf("%s$%s.%02d", sign, commas(cents/100), cents%100)
 }
 
-// signed: +$12.30 / −$23.76.
+// signed: +$12.30 / −$23.76, and $0.00 without a sign: zero is neither.
 func signed(v float64) string {
-	if v > 0 || (v == 0 && !math.Signbit(v)) {
+	if math.Round(v*100) > 0 {
 		return "+" + money(v)
 	}
 	return money(v)
 }
 
-// signedPlain: +12.30 / −23.76, for the menu bar.
+// signedPlain: +12.30 / −23.76 / 0.00, for the menu bar.
 func signedPlain(v float64) string {
-	s := strings.TrimPrefix(strings.TrimPrefix(signed(v), "+"), "−")
-	s = strings.TrimPrefix(s, "$")
-	if v < 0 {
-		return "−" + s
-	}
-	return "+" + s
+	return strings.Replace(signed(v), "$", "", 1)
 }
 
 func moneyP(v *float64) string {

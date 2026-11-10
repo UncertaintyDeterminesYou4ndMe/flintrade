@@ -190,9 +190,22 @@ func (a *app) statusLine() string {
 	return fmt.Sprintf("%s · %s · 权益 %s", mode, daemon, eq)
 }
 
+// dayRollNote says when "today" restarts: the risk monitor rolls the day at
+// midnight New York time, which is 13:00 (12:00 in US summer) in Beijing.
+func dayRollNote(now time.Time) string {
+	ny, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return "今日盈亏按美东日期计算"
+	}
+	n := now.In(ny)
+	midnight := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, ny).In(now.Location())
+	return "今日盈亏按美东日期,每天本地 " + midnight.Format("15:04") + " 换日"
+}
+
 func (a *app) trayMenu() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{ID: "status", Label: a.statusLine(), Disabled: true},
+		{ID: "day", Label: dayRollNote(time.Now()), Disabled: true},
 		mygo.Separator(),
 		{ID: "open", Label: "打开 Flintrade", Click: func(*mygo.MenuItem, *mygo.Window) { a.open() }},
 		{ID: "restart", Label: "重启 daemon", Click: func(*mygo.MenuItem, *mygo.Window) { a.restart() }},

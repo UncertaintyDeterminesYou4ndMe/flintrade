@@ -167,12 +167,22 @@ func TestCredInputsKeepTyping(t *testing.T) {
 
 func TestFormat(t *testing.T) {
 	cases := map[string]string{
-		money(9140.92): "$9,140.92", money(-23.76): "−$23.76", signed(12.3): "+$12.30", signed(0): "+$0.00",
+		money(9140.92): "$9,140.92", money(-23.76): "−$23.76", signed(12.3): "+$12.30", signed(0): "$0.00", signedPlain(0): "0.00", signedPlain(0.004): "0.00", money(-0.004): "$0.00", pct(0): "0.00%", pct(-0.001): "0.00%", pct(-8.594): "−8.59%",
 		signedPlain(-23.76): "−23.76", money(1234567.006): "$1,234,567.01",
 	}
 	for got, want := range cases {
 		if got != want {
 			t.Errorf("got %q want %q", got, want)
 		}
+	}
+}
+
+func TestDayRollNote(t *testing.T) {
+	bj := time.FixedZone("CST", 8*3600)
+	if got := dayRollNote(time.Date(2026, 11, 10, 13, 4, 0, 0, bj)); !strings.Contains(got, "13:00") {
+		t.Errorf("winter: %q", got)
+	}
+	if got := dayRollNote(time.Date(2026, 7, 10, 13, 4, 0, 0, bj)); !strings.Contains(got, "12:00") {
+		t.Errorf("summer: %q", got)
 	}
 }

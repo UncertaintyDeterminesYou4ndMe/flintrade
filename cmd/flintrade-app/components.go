@@ -146,11 +146,15 @@ func abs32(x float32) float32 {
 	return x
 }
 
+// pct: +0.31% / −8.59%, and 0.00% without a sign.
 func pct(v float64) string {
-	if v < 0 {
+	switch r := math.Round(v * 100); {
+	case r > 0:
+		return fmt.Sprintf("+%.2f%%", v)
+	case r < 0:
 		return fmt.Sprintf("−%.2f%%", -v)
 	}
-	return fmt.Sprintf("+%.2f%%", v)
+	return "0.00%"
 }
 
 // pageInset matches the overview's margins on every page.

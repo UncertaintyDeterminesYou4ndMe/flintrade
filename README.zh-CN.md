@@ -10,6 +10,16 @@ flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模
 
 核心理念继承自项目最初的 [“Arena”](docs/agent-architecture.md) 设计，且从未松动：**LLM 只提议，确定性代码来处置。** 模型负责推理方向、仓位背后的理由、交易论点，但它从不直接调用 broker，也从不写账本——只有 executor 能下单，而且只有当每一个提议都通过了一道纯 Go 代码（而非 prompt）实现的风控 gate 之后才行。
 
+## 桌面应用
+
+![Flintrade.app：权益、持仓、按标的战绩和各 loop 运行状况](docs/screenshots/flintrade-app.jpg)
+
+Flintrade.app 是 daemon 的桌面客户端：macOS 原生菜单栏应用加一个窗口，用 [MyGo](https://github.com/egoist/mygo) 写（原生 UI，没有 WebView）。菜单栏显示当日盈亏；daemon 停了、交易暂停、broker token 快过期时发通知。窗口里看权益、持仓、按标的战绩、成交、意图、教训和逐笔复盘。它能改 `trading.toml`、`strategies.toml` 和 prompt（保存前按严格规则校验，`risk.toml` 只读），也能更换长桥凭据（先用新凭据做一次只读调用验证）。它只读数据库、从不下单；退出 App 不影响交易。
+
+```bash
+(cd cmd/flintrade-app && go tool mygo build -skip-dmg) && cp -R build/darwin-arm64/Flintrade.app /Applications/
+```
+
 ## 架构
 
 ```
@@ -97,7 +107,7 @@ python3 dashboard/server.py  # web 仪表盘, http://localhost:8383(系统 pytho
 (cd cmd/flintrade-app && go tool mygo build -skip-dmg) && cp -R build/darwin-arm64/Flintrade.app /Applications/
 ```
 
-Flintrade.app（macOS 原生，用 [mygo](https://github.com/egoist/mygo) 写）常驻菜单栏显示当日盈亏，daemon 停了、交易暂停、token 快过期时发通知。窗口里看权益、持仓、按标的战绩、成交、意图、教训和逐笔复盘；能改 `trading.toml`、`strategies.toml` 和 prompt（保存前按严格规则校验，`risk.toml` 只读），也能更换长桥凭据（先用新凭据做一次只读调用验证）。它只读数据库、从不下单；退出 App 不影响交易。
+Flintrade.app 的介绍见[桌面应用](#桌面应用)。
 
 ## 仓库导览
 

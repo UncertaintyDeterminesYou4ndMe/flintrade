@@ -10,6 +10,16 @@ flintrade is a single-process, multi-loop daemon that paper-trades US equities. 
 
 The core philosophy, carried over from the project's original ["Arena"](docs/agent-architecture.md) design and never relaxed: **the LLM proposes, deterministic code disposes.** The model reasons about direction, sizing rationale, and thesis. It never calls the broker and never writes the books — only the executor places orders, and only after every proposal clears a risk gate that is plain Go code, not a prompt.
 
+## Desktop app
+
+![Flintrade.app: equity, positions, per-symbol records and loop health](docs/screenshots/flintrade-app.jpg)
+
+Flintrade.app is the desktop client for the daemon: a native macOS menu bar app and window, built with [MyGo](https://github.com/egoist/mygo) (native UI, no web view). The menu bar shows today's PnL and notifies you when the daemon stops, trading halts or the broker token is about to expire. The window shows equity, positions, per-symbol records, trades, intents, lessons and per-trade reviews. It edits `trading.toml`, `strategies.toml` and the prompts (validated strictly before saving; `risk.toml` stays read-only), and replaces the Longbridge credentials after verifying them with one read-only broker call. It reads the database read-only and never places orders; quitting it does not stop trading.
+
+```bash
+(cd cmd/flintrade-app && go tool mygo build -skip-dmg) && cp -R build/darwin-arm64/Flintrade.app /Applications/
+```
+
 ## Architecture
 
 ```
@@ -98,7 +108,7 @@ python3 dashboard/server.py  # web dashboard at http://localhost:8383 (system py
 (cd cmd/flintrade-app && go tool mygo build -skip-dmg) && cp -R build/darwin-arm64/Flintrade.app /Applications/
 ```
 
-Flintrade.app (macOS, native, built with [mygo](https://github.com/egoist/mygo)) lives in the menu bar with today's PnL and notifies when the daemon stops, trading halts or the token is about to expire. Its window shows equity, positions, per-symbol records, trades, intents, lessons and per-trade reviews; it edits `trading.toml`, `strategies.toml` and the prompts (validated strictly before saving, `risk.toml` stays read-only) and replaces Longbridge credentials after verifying them with one read-only broker call. It reads the database read-only and never orders; quitting it does not stop trading.
+Flintrade.app is described under [Desktop app](#desktop-app).
 
 ## Repo map
 
