@@ -13,6 +13,12 @@ The core philosophy, carried over from the project's original ["Arena"](docs/age
 ## Desktop app
 
 ![Flintrade.app: equity, positions, per-symbol records and loop health](docs/screenshots/flintrade-app.jpg)
+<img width="1493" height="841" alt="image" src="https://github.com/user-attachments/assets/5e64960f-95ad-4624-bdd9-f8964b443551" />
+<img width="1482" height="829" alt="image" src="https://github.com/user-attachments/assets/dc7fe27b-dbb2-44db-a1ed-73652fc94599" />
+<img width="1492" height="827" alt="image" src="https://github.com/user-attachments/assets/8432e003-cd44-48f5-964c-79727e1c4f9c" />
+<img width="1490" height="799" alt="image" src="https://github.com/user-attachments/assets/9ba20117-d2e2-4f47-bc00-042f010f0464" />
+<img width="1484" height="763" alt="image" src="https://github.com/user-attachments/assets/b27d2cc0-d3b2-46ce-91ab-8c20c1398cab" />
+
 
 Flintrade.app is the desktop client for the daemon: a native macOS menu bar app and window, built with [MyGo](https://github.com/egoist/mygo) (native UI, no web view). The menu bar shows today's PnL and notifies you when the daemon stops, trading halts or the broker token is about to expire. The window shows equity, positions, per-symbol records, trades, intents, lessons and per-trade reviews. It edits `trading.toml`, `strategies.toml` and the prompts (validated strictly before saving; `risk.toml` stays read-only), and replaces the Longbridge credentials after verifying them with one read-only broker call. It reads the database read-only and never places orders; quitting it does not stop trading.
 
