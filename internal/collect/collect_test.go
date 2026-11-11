@@ -194,3 +194,35 @@ func TestClockBlock(t *testing.T) {
 		}
 	}
 }
+
+// TestHardLesson_PoolNeverTruncated: collect.sh kept the top 5 by dollar
+// volume, so in 2026-08 USO/UGL/AGQ got indicators in 0 of 514 rounds and the
+// risk gate's volume_ratio floor never saw them. Every pool symbol must get a
+// kline fetch, however large the pool and however thin its trading.
+func TestHardLesson_PoolNeverTruncated(t *testing.T) {
+	market := []string{"QQQ.US", "SPY.US"}
+	playbook := []string{"MU.US"}
+	var pool []string
+	var rows []map[string]any
+	for i := range 30 {
+		sym := "S" + strconv.Itoa(i) + ".US"
+		pool = append(pool, sym)
+		rows = append(rows, map[string]any{"symbol": sym, "turnover": strconv.Itoa(i * 1000)}) // S0 trades nothing
+	}
+	pool = append(pool, "MU.US")
+	rows = append(rows, map[string]any{"symbol": "MU.US", "turnover": "1"})
+
+	got := KlineSymbols(market, playbook, pool, rows)
+	if len(got) != len(market)+len(pool) {
+		t.Fatalf("%d symbols, want %d (market + whole pool)", len(got), len(market)+len(pool))
+	}
+	for _, s := range append(slices.Clone(market), pool...) {
+		if !slices.Contains(got, s) {
+			t.Errorf("%s has no kline fetch", s)
+		}
+	}
+	// Market regime and playbook first; the rest by turnover, the idle one last.
+	if !slices.Equal(got[:3], []string{"QQQ.US", "SPY.US", "MU.US"}) || got[3] != "S29.US" || got[len(got)-1] != "S0.US" {
+		t.Errorf("order: %v", got)
+	}
+}

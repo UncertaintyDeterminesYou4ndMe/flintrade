@@ -220,11 +220,20 @@ func iterate(ctx context.Context, l loop.Loop) (err error) {
 type supervisor struct {
 	mu     sync.Mutex
 	lastOK map[string]time.Time
+	now    func() time.Time  // nil → time.Now; tests pin it
+	fds    func() (int, int) // nil → fdUsage; tests fake it
+}
+
+func (s *supervisor) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
 }
 
 func (s *supervisor) mark(name string) {
 	s.mu.Lock()
-	s.lastOK[name] = time.Now()
+	s.lastOK[name] = s.clock()
 	s.mu.Unlock()
 }
 
@@ -263,11 +272,15 @@ func (s *supervisor) watchdog(loops []scheduled) string {
 			continue
 		}
 		limit := max(6*l.Cadence, 30*time.Minute)
-		if age := time.Since(last); age > limit {
+		if age := s.clock().Sub(last); age > limit {
 			return fmt.Sprintf("loop %q has had no successful iteration for %s (limit %s)", l.Name(), age.Round(time.Second), limit)
 		}
 	}
-	if used, soft := fdUsage(); used >= 0 && soft > 0 && float64(used) > 0.9*float64(soft) {
+	fds := fdUsage
+	if s.fds != nil {
+		fds = s.fds
+	}
+	if used, soft := fds(); used >= 0 && soft > 0 && float64(used) > 0.9*float64(soft) {
 		return fmt.Sprintf("fd usage %d/%d above 90%% (leak?)", used, soft)
 	}
 	return ""

@@ -22,7 +22,8 @@ launchd 的 KeepAlive 帮不上忙——系统带病运行 5 天,零交易。
 规则:进程要么健康要么死。daemon 主线程看门狗盯两件事,任一触发就 `os._exit`
 交给 launchd 重启:关键 loop 连续 `max(6×cadence, 30min)` 无成功迭代;
 fd 用量超 soft limit 90%(泄漏早期就重启,不等 EMFILE)。
-→ `agent/daemon.py:_watchdog_check`
+→ `cmd/flintrade-daemon/main.go:watchdog`(退出码 70),测试 `TestHardLesson_SickButAliveExits`、
+`TestHardLesson_FailedIterationIsNotProgress`
 
 ### SQLite 连接不跨线程
 每个 loop 的实例与 DB 连接必须在**自己线程内**构造(工厂模式),
@@ -174,7 +175,8 @@ USO / UGL / AGQ 覆盖率 **0%**、GLD 8%、GOOGL 24%、META 28% —— 而 `vol
 (cadence 1800s,富余 19 倍)、payload +1.6K tokens/轮,没有任何理由截断。
 **改动顺序要紧**:先补池子,再 fail-closed。反过来做,会用一个数据缺口去拒掉
 UGL 那类「拿不到指标但论点成立」的单子。
-→ `scripts/collect.sh` 的 `KLINE_SYMBOLS`
+→ `internal/collect/collect.go:KlineSymbols`(原 `scripts/collect.sh` 的 `KLINE_SYMBOLS`),
+测试 `TestHardLesson_PoolNeverTruncated`
 
 ## 运维 / 导出
 

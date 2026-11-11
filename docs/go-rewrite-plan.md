@@ -12,7 +12,7 @@
 | D3 | **`flintrade.db` schema 不变**,Go 版读写同一份库;**切换验收通过即删除全部 Python** | 历史连续。回滚靠 git tag `python-final`(签出 + 重建 `.venv` + plist 指回),不靠在仓库里留旧代码。 |
 | D4 | Longbridge / `claude -p` / kimi 继续走 CLI 子进程 | 与现状一致,行为可对照;SDK 化留作以后的独立改动。 |
 | D5 | 凭证:沿用 maka-agent 的 file-first 方案 —— 单文件、0600、原子写(临时文件+rename)+ 跨进程锁 + schema 版本;切换时移出仓库到 `~/Library/Application Support/Flintrade/credentials.env` | daemon 无人值守:Keychain 在 daemon 重新编译后会弹授权框,launchd 下没人点就卡死。OS 用户账户是安全边界(同 maka SECURITY.md)。移出仓库 = 不会被 git / export_oss / 读仓库的 agent 碰到。 |
-| D6 | ~~语义记忆:向量存 `vectors` 表 + Ollama embedding~~ **待定,见下** | 实查后发现:只有已平仓成交(224 条)被向量化;lessons/plans 的召回本来就是 SQL。查询串是「标的 + 分数 + RSI + 量比」这类数字模板,句向量模型不懂数值远近,召回结果 65% 只是同标的的历史成交;738 次调用里模型只在 49 次(6.6%)回复中引用过。倾向改为确定性 SQL(同标的/同方向/同时段的历史成交及胜率),零依赖。 |
+| D6 | ~~语义记忆:向量存 `vectors` 表 + Ollama embedding~~ **已定:确定性 SQL(`internal/memory`),删掉 embedding 与 `vectors` 表** | 实查后发现:只有已平仓成交(224 条)被向量化;lessons/plans 的召回本来就是 SQL。查询串是「标的 + 分数 + RSI + 量比」这类数字模板,句向量模型不懂数值远近,召回结果 65% 只是同标的的历史成交;738 次调用里模型只在 49 次(6.6%)回复中引用过。改为确定性 SQL(同标的/同方向/同时段的历史成交及胜率),零依赖。2026-11-09 落地,见「切换」一节。 |
 | D7 | 回测(`backtest/`)移植到 Go,并作为 App 改风控参数的保存闸门 | `CLAUDE.md` 要求风控数值改动先过回测;App 让改参数变容易,闸门必须在。代码已从 git 恢复(408K);行情数据(gitignored)按 manifest 重下。 |
 | D8 | 代码放 flintrade 仓库:`cmd/flintrade-daemon`、`cmd/flintrade-app`、`internal/…` | 与 schema、prompts、config 同仓,单一事实源不分裂。 |
 
@@ -20,9 +20,9 @@
 
 ```
 Flintrade.app (mygo native)                    flintrade-daemon (launchd KeepAlive)
- ├─ 菜单栏:状态/今日 PnL/权益               ├─ executor / reconciler / risk_monitor
+ ├─ 菜单栏:状态(今日盈亏可选)              ├─ executor / reconciler / risk_monitor
  ├─ 通知:熔断、daemon 掉线、token ≤14d       ├─ producers: technical / event / news
- ├─ 总览 / 成交 / 持仓 / 复盘               ├─ reflect / postmortem / invariants
+ ├─ 总览 / 成交 / 意图 / 复盘               ├─ reflect / postmortem / invariants
  ├─ 策略编辑(editor + diffview → 校验 → 测试  │
  │    → [风控参数需回测] → 重启 daemon)      │
  └─ 凭证(JWT 过期日 → 原子写 → longbridge    │
@@ -140,7 +140,7 @@ prompts(`agent/prompts/*.md`)与 config(`agent/config/*.toml`)原样复用,路�
   违反「模型看到的必须留痕」;非零退出时把 stdout(如 `Error: Exceeded USD budget`)当正常回复返回。
 - llm:CLI 超时杀整个进程组。
 - llm:未知 tier 报错,不再默认成「claude-cli + 空 model」(hard-lesson:model 不得为空)。
-- embedding:`fastembed`(进程内 ONNX)在 Go 里无对应,返回不可用。是否还需要 embedding 取决于 D6。
+- embedding:`fastembed`(进程内 ONNX)在 Go 里无对应,返回不可用。后来按 D6 整个删掉。
 - llm:**交易模型只看到我们的 prompt**(2026-11-09 用户确认)。`claude -p` 原先会顺带加载全局
   `~/.claude/CLAUDE.md`(「用中文交流」等个人工作原则)、仓库 CLAUDE.md(写给编码 agent 的开发说明)、
   自动记忆 MEMORY.md 和约 1.6 万 token 的内置工具定义。现加 `--setting-sources "" --tools ""
@@ -187,7 +187,7 @@ prompts(`agent/prompts/*.md`)与 config(`agent/config/*.toml`)原样复用,路�
 ### 阶段 7 Flintrade.app v1(2026-11-09)
 
 - `cmd/flintrade-app`(mygo v0.8.3 原生 UI)+ `internal/dash`(只读快照、告警判定、配置/凭证写入、重启 daemon)。
-- 菜单栏:今日盈亏 / 「停」/「暂停」;菜单里有状态行、打开、重启 daemon、退出(交易照常)。
+- 菜单栏:今日盈亏 / 「停」/「暂停」(后来改为默认只显示状态,见下一节);菜单里有状态行、打开、重启 daemon、退出(交易照常)。
 - 窗口:总览(模式、daemon、权益/今日/累计/在险、权益曲线、持仓、挂单、待执行意图、进程)、成交、意图、
   复盘(教训/计划/逐笔复盘)、策略(编辑 toml 与 prompt,严格校验 → diff 确认 → 原子写 → 可选重启)、
   凭证(到期日、掩码显示、更换:离线校验 → 用新值调只读 `longbridge assets` → 原子写 0600 → 询问重启)。
@@ -218,3 +218,20 @@ prompts(`agent/prompts/*.md`)与 config(`agent/config/*.toml`)原样复用,路�
   2026-11-11 用 `scripts/export_oss.sh` 同步到 flintrade。截图从导出副本渲染,凭证用临时假值,
   避免页面出现本机路径。
 - 未做:日志、`bin/flintrade` 输出、代码注释仍是中文;熔断原因不翻译(本来就是英文或用户输入)。
+
+### 剩余待办(2026-11-11 盘点)
+
+1. **阶段 6 回测移植(D7)**:还没开始,`backtest/` 仍是 13 个 Python 文件。它卡住两件事:
+   App 里编辑 `risk.toml`(风控数值改动要先过回测),以及删除 `backtest/*.py` 与 `scripts/indicators.py`。
+   删 Python 前还要生成并入库回测基线结果(「切换与回滚」一节的要求)。
+2. **切换第 5 步的剩余删除**:`dashboard/`、`web/`、看板读路径用的 `agent/*.py` 与 `agent/schema.sql`
+   (及其与 Go schema 的一致性测试)。Flintrade.app 已落地,这部分不必等回测;要用户确认不再需要浏览器看板。
+   删完改写 `CLAUDE.md`、`AGENTS.md`、README、`scripts/export_oss.sh`。
+3. **`docs/hard-lessons.md` 的防线位置**仍有不少写的是 Python 文件;对照 Go 代码逐条更新。
+4. **2026-12-09 之后**删除 `logs/daemon.python-final.{out,err}`。
+
+验证一节「每条 hard-lesson 一个命名测试」:2026-11-11 补上看门狗
+(`cmd/flintrade-daemon`:`TestHardLesson_SickButAliveExits`、`TestHardLesson_FailedIterationIsNotProgress`)
+和数据池截断(`internal/collect`:`TestHardLesson_PoolNeverTruncated`)。「不做跨模型 fallback」
+「model 永不留空」「账本守夜人」由 `internal/llm`、`internal/config`、`internal/invariants` 的测试覆盖,
+没有单独命名;LLM stdout 进 shell 管道、openrsync 两条与 daemon 代码无关。
