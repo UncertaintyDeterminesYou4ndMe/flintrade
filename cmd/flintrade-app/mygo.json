@@ -2,5 +2,9 @@
   "name": "Flintrade",
   "identifier": "com.flintrade.app",
   "version": "0.1.0",
-  "out": "../../build"
+  "out": "../../build",
+  "i18n": {
+    "dir": "locales",
+    "source": "en"
+  }
 }

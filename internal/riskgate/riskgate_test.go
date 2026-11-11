@@ -101,6 +101,7 @@ func TestMatchesPythonGolden(t *testing.T) {
 		}
 	}
 	failed := 0
+	codeKeys := map[string]bool{}
 	for i, c := range g.Cases {
 		in := c.Input
 		gate := &Gate{Risk: risks[c.Risk], Strategies: strats[c.Strategies], Equity: in.Equity, Halted: in.Halted,
@@ -134,6 +135,13 @@ func TestMatchesPythonGolden(t *testing.T) {
 		var gn, wn any
 		json.Unmarshal(gotNotes, &gn)
 		json.Unmarshal(wantNotes, &wn)
+		// Every rejection also carries its reason as a code the app can say.
+		if !v.Approved && !v.Code.Valid() {
+			t.Errorf("case %d: rejection %q has no valid code: %+v", i, v.Reason, v.Code)
+			codeKeys = nil
+		} else if !v.Approved && codeKeys != nil {
+			codeKeys[v.Code.Key] = true
+		}
 		if v.Approved != c.Want.Approved || v.Qty != c.Want.Qty || v.Reason != c.Want.Reason || !reflect.DeepEqual(gn, wn) {
 			failed++
 			if failed <= 8 {
@@ -146,6 +154,7 @@ func TestMatchesPythonGolden(t *testing.T) {
 	if failed > 0 {
 		t.Fatalf("%d of %d cases differ", failed, len(g.Cases))
 	}
+	t.Logf("rejection codes covered by the golden cases: %d", len(codeKeys))
 	if len(g.Cases) < 5000 {
 		t.Fatalf("golden has only %d cases", len(g.Cases))
 	}

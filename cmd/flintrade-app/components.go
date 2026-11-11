@@ -121,7 +121,7 @@ func row(c *ui.Context, key, name, sub string, ys []float64, base float64, value
 	t := c.Theme()
 	ui.Column(c.Key(key)).Gap(0).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(10, 0).Children(func() {
-			ui.Column(c).Width(120).Gap(2).Children(func() {
+			ui.Column(c).Width(170).Gap(2).Children(func() {
 				ui.Text(c, name).FontSize(15).NoWrap()
 				ui.Text(c, sub).FontSize(12).TextColor(t.TextMuted).NoWrap()
 			})

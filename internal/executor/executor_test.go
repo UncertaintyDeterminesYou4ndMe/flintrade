@@ -12,6 +12,7 @@ import (
 	"flintrade/internal/broker"
 	"flintrade/internal/db"
 	"flintrade/internal/loop"
+	"flintrade/internal/reasoncode"
 	"flintrade/internal/session"
 	"flintrade/internal/testutil"
 )
@@ -104,6 +105,20 @@ func (e *env) submit(in db.IntentInput) int64 {
 	return id
 }
 
+// code is the intent's reject_code; the zero Code when none is stored.
+func (e *env) code(id int64) reasoncode.Code {
+	e.t.Helper()
+	var raw *string
+	if err := e.mig.QueryRow(e.ctx, "SELECT reject_code FROM intents WHERE id=?", id).Scan(&raw); err != nil {
+		e.t.Fatalf("reject_code %d: %v", id, err)
+	}
+	if raw == nil {
+		return reasoncode.Code{}
+	}
+	c, _ := reasoncode.Parse(*raw)
+	return c
+}
+
 func (e *env) intent(id int64) db.Intent {
 	e.t.Helper()
 	it, err := e.mig.Intent(e.ctx, id)
@@ -154,6 +169,9 @@ func TestEndToEnd(t *testing.T) {
 	e.run()
 	if it := e.intent(sid); it.Status != "rejected" || !strings.Contains(*it.RejectReason, "翻向") {
 		t.Fatalf("conflict: %+v", it)
+	}
+	if c := e.code(sid); c.Key != "flipNeedsClose" || !c.Valid() || c.Args["side"] != "long" {
+		t.Fatalf("conflict code: %+v", c)
 	}
 	cid := e.submit(db.IntentInput{Symbol: "NVDA.US", Side: "close", EntryHint: f(105), Reason: str("take profit")})
 	e.run()
@@ -210,6 +228,9 @@ func TestHardLesson_EntryTTLExitsNeverExpire(t *testing.T) {
 	}
 	if it := e.intent(stale); it.Status != "expired" || !strings.Contains(*it.RejectReason, "TTL 45min") {
 		t.Fatalf("intent: %+v", it)
+	}
+	if c := e.code(stale); c.Key != "ttlExpired" || !c.Valid() || c.Args["ttl"] != "45" {
+		t.Fatalf("ttl code: %+v", c)
 	}
 	if e.order("flintrade-fresh-1").Status != "submitted" || e.order("flintrade-exit-1").Status != "submitted" {
 		t.Fatal("fresh entry or exit order touched")
@@ -320,6 +341,9 @@ func TestHardLesson_BrokerRawErrorStored(t *testing.T) {
 	if it.Status != "rejected" || !strings.Contains(*it.RejectReason, "code 603011") ||
 		!strings.Contains(*it.RejectReason, "orth=RTH_ONLY sess=Intraday") || e.order("flintrade-"+itoa(id)).Status != "rejected" {
 		t.Fatalf("%+v", it)
+	}
+	if c := e.code(id); c.Key != "brokerRejected" || !c.Valid() || !strings.Contains(c.Args["raw"], "603011") {
+		t.Fatalf("broker code: %+v", c)
 	}
 }
 

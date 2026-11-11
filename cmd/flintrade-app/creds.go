@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"math"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"flintrade/cmd/flintrade-app/locales"
 	"flintrade/internal/creds"
 	"flintrade/internal/dash"
 )
@@ -29,33 +30,37 @@ func (a *app) credsPage(c *ui.Context) {
 	s, t := a.snap, c.Theme()
 	cs := &a.cred
 	ui.Scroll(c).Grow(1).Padding(pageInset...).Gap(20).Children(func() {
-		sectionTitle(c, "凭证")
+		sectionTitle(c, locales.CredsTitle())
 
 		ui.Grid(c).Columns(2).Gap(20).AlignItems(ui.Start).Children(func() {
 			card(c, func() {
 				ui.Column(c).Gap(14).Padding(0, 0, 18, 0).Children(func() {
-					heading(c, "现在用的")
-					field(c, "文件", s.CredPath)
+					heading(c, locales.CredsCurrent())
+					field(c, locales.CredsFile(), s.CredPath)
 					if err := creds.CheckPerms(s.CredPath); err != nil {
-						field(c, "权限", err.Error())
+						field(c, locales.CredsPerms(), err.Error())
 					}
-					mode := "DRY RUN:模拟成交,不下单"
+					mode := locales.CredsModeDry()
 					if s.Live {
-						mode = "LIVE:在 paper 账户真实下单"
+						mode = locales.CredsModeLive()
 					}
-					field(c, "模式", mode+"(由文件里的 FLINTRADE_DRY_RUN 决定,App 不提供开关)")
+					field(c, locales.CredsMode(), locales.CredsModeNote(mode))
 					if !s.Token.ExpiresAt.IsZero() {
 						days := s.Token.ExpiresIn(time.Now()).Hours() / 24
-						account := s.Token.Channel
+						account := locales.CredsAccountLine(s.Token.Channel, s.Token.Region)
 						if s.Token.Paper() {
-							account += "(模拟盘)"
+							account = locales.CredsAccountLinePaper(s.Token.Channel, s.Token.Region)
 						}
-						field(c, "账户", account+" · "+s.Token.Region)
-						field(c, "Token", fmt.Sprintf("签发 %s,到期 %s,还剩 %.0f 天",
-							s.Token.IssuedAt.Local().Format("2006-01-02"), s.Token.ExpiresAt.Local().Format("2006-01-02"), days))
+						field(c, locales.CredsAccount(), account)
+						field(c, "Token", locales.CredsTokenDates(
+							s.Token.IssuedAt.Local().Format("2006-01-02"), s.Token.ExpiresAt.Local().Format("2006-01-02"), int(math.Round(days))))
 					}
 					for _, k := range dash.CredKeys {
-						field(c, credLabels[k], dash.Mask(s.CredValues[k]))
+						masked := dash.Mask(s.CredValues[k])
+						if masked == "" {
+							masked = locales.CredsNotSet()
+						}
+						field(c, credLabels[k], masked)
 					}
 					for _, p := range s.TokenProblems {
 						ui.Text(c, p.Message).TextColor(t.Danger)
@@ -65,27 +70,27 @@ func (a *app) credsPage(c *ui.Context) {
 
 			card(c, func() {
 				ui.Column(c).Gap(14).Padding(0, 0, 18, 0).Children(func() {
-					heading(c, "更换")
-					ui.Text(c, "到 open.longbridge.com 开发者中心重新生成 Access Token(App Key / Secret 一般不变)。只填要换的,留空的保持原值。").
+					heading(c, locales.CredsReplace())
+					ui.Text(c, locales.CredsReplaceHint()).
 						TextColor(t.TextMuted)
 					for i, k := range dash.CredKeys {
 						ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 							ui.Text(c, credLabels[k]).Width(110).TextColor(t.TextMuted)
 							// Bound to a field that outlives the frame: the input writes it after this call returns.
-							ui.TextInput(c.Key("cred-"+k), &cs.in[i]).Password().Label(credLabels[k]).Placeholder("留空不改").Grow(1).Disabled(cs.busy)
+							ui.TextInput(c.Key("cred-"+k), &cs.in[i]).Password().Label(credLabels[k]).Placeholder(locales.CredsKeepPlaceholder()).Grow(1).Disabled(cs.busy)
 						})
 					}
 					ui.Column(c).Gap(8).Padding(6, 0, 0, 0).Children(func() {
-						label := "验证并保存"
+						label := locales.CredsVerifySave()
 						if cs.busy {
-							label = "验证中"
+							label = locales.CredsVerifying()
 						}
 						ui.Row(c).Children(func() {
 							if ui.PrimaryButton(c, label).Disabled(cs.busy).Clicked() {
 								a.saveCreds()
 							}
 						})
-						ui.Text(c, "先离线检查 token,再用新凭证调一次只读的 longbridge assets,通过才写入文件(原子写,0600)。").
+						ui.Text(c, locales.CredsVerifyNote()).
 							FontSize(12).TextColor(t.TextMuted)
 					})
 					if cs.err != "" {
@@ -98,8 +103,8 @@ func (a *app) credsPage(c *ui.Context) {
 			})
 		})
 	})
-	switch ui.AlertDialog(c, &cs.askRestart, "凭证已保存",
-		"daemon 启动时才读凭证文件。现在重启 daemon 让新凭证生效?", "稍后", "重启") {
+	switch ui.AlertDialog(c, &cs.askRestart, locales.CredsSavedTitle(),
+		locales.CredsSavedBody(), locales.CredsLater(), locales.CommonRestart()) {
 	case 1:
 		a.restart()
 	}
@@ -118,10 +123,10 @@ func (a *app) saveCreds() {
 		mygo.RunOnMain(func() {
 			cs.busy = false
 			if err != nil {
-				cs.err = err.Error()
+				cs.err = errText(err)
 			} else {
 				cs.in = [3]string{}
-				cs.msg = "已写入 " + path
+				cs.msg = locales.CredsWritten(path)
 				cs.askRestart = true
 				a.refreshNow()
 			}

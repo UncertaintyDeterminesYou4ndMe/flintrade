@@ -8,6 +8,7 @@ import (
 
 	"flintrade/internal/db"
 	"flintrade/internal/loop"
+	"flintrade/internal/marks"
 	"flintrade/internal/session"
 	"flintrade/internal/settle"
 	"flintrade/internal/testutil"
@@ -328,5 +329,30 @@ func TestManualSwitchesAndRoleGuard(t *testing.T) {
 	}
 	if _, err := e.m.store.OpenPosition(e.ctx, db.PositionInput{Symbol: "X", Side: "long", Qty: 1, EntryPrice: 1}); err == nil {
 		t.Fatal("risk_monitor opened a position")
+	}
+}
+
+// The round's one batched quote is kept for display: every open position
+// rides along, and the day roll records the floating P&L carried over.
+func TestMarksForDisplay(t *testing.T) {
+	e := setup(t, nil)
+	e.open("AAPL.US", "long", 10, 100, db.Ptr(95.0), nil, nil)
+	e.open("TSLA.US", "short", 2, 300, nil, nil, nil) // unguarded, priced anyway
+	e.run(map[string]float64{"AAPL.US": 103, "TSLA.US": 290})
+	if e.calls != 1 {
+		t.Fatalf("one batched quote call per round, got %d", e.calls)
+	}
+	ms, err := marks.Get(e.ctx, e.boot, []string{"AAPL.US", "TSLA.US"})
+	if err != nil || ms["AAPL.US"].Price != 103 || ms["TSLA.US"].Price != 290 ||
+		ms["AAPL.US"].Session != session.Intraday || !ms["AAPL.US"].Time().Equal(e.now) {
+		t.Fatalf("marks %+v %v", ms, err)
+	}
+
+	e.now = e.now.Add(24 * time.Hour)
+	e.run(map[string]float64{"AAPL.US": 104, "TSLA.US": 290})
+	ds, ok, err := marks.GetDayStart(e.ctx, e.boot)
+	// Rolled with the previous round's marks: +30 long, +20 short.
+	if err != nil || !ok || ds.Day != "2026-11-10" || ds.Sum != 50 || !ds.Complete {
+		t.Fatalf("day start %+v %v %v", ds, ok, err)
 	}
 }

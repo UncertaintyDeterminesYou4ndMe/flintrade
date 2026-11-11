@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"flintrade/internal/db"
+	"flintrade/internal/marks"
+	"flintrade/internal/reasoncode"
+	"flintrade/internal/settle"
 	"flintrade/internal/testutil"
 )
 
@@ -62,6 +65,14 @@ func TestLoad(t *testing.T) {
 	if _, _, err := m.SubmitIntent(ctx, db.IntentInput{Source: "technical", Symbol: "B.US", Side: "long"}); err != nil {
 		t.Fatal(err)
 	}
+	rid, _, err := m.SubmitIntent(ctx, db.IntentInput{Source: "technical", Symbol: "C.US", Side: "long"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := reasoncode.New("maxPositions", "max", "3")
+	if err := m.DecideIntentCoded(ctx, rid, "rejected", db.Ptr("已达并发仓上限 3"), code.JSON()); err != nil {
+		t.Fatal(err)
+	}
 	for _, l := range []string{"executor", "reconciler", "risk_monitor"} {
 		if err := d.MustAs(db.RoleReader).Beat(ctx, l, nil); err != nil {
 			t.Fatal(err)
@@ -94,6 +105,9 @@ func TestLoad(t *testing.T) {
 	}
 	if len(s.Pending()) != 1 || s.Pending()[0].Symbol != "B.US" {
 		t.Errorf("pending %+v", s.Pending())
+	}
+	if in := s.Intents[0]; in.RejectReason != "已达并发仓上限 3" || in.RejectCode != *code.JSON() {
+		t.Errorf("rejected intent %+v", in)
 	}
 	if s.DaemonDown() {
 		t.Errorf("core loops just beat; stale: %v", s.StaleLoops())
@@ -133,7 +147,7 @@ func TestLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := Load(ctx, dir, time.Now())
-	if as := Alerts(s, h); len(as) != 1 || as[0].Key != "halt" || as[0].Body != reason {
+	if as := Alerts(s, h); len(as) != 1 || as[0].Key != "halt" || as[0].Reason != reason {
 		t.Errorf("halt alert: %+v", as)
 	}
 }
@@ -211,7 +225,7 @@ func TestMask(t *testing.T) {
 	if got := Mask("abcdefghijklmnop"); got != "••••••••mnop" || strings.Contains(got, "abcd") {
 		t.Errorf("Mask = %q", got)
 	}
-	if Mask("") != "(未设置)" || Mask("short") != "••••••••" {
+	if Mask("") != "" || Mask("short") != "••••••••" {
 		t.Error("short / empty masks")
 	}
 }
@@ -223,4 +237,54 @@ func contains(xs []string, x string) bool {
 		}
 	}
 	return false
+}
+
+// Floating P&L comes from the risk monitor's marks; today's figure counts it
+// only when both ends are known, otherwise it says realized only.
+func TestFloatAndDay(t *testing.T) {
+	ctx := context.Background()
+	dir, d := root(t, "")
+	rm := d.MustAs(db.RoleRiskMonitor)
+	if _, err := settle.Open(ctx, d.MustAs(db.RoleExecutor), settle.OpenInput{Symbol: "A.US", Side: "long", Qty: 10,
+		FillPrice: 100, Stop: db.Ptr(95.0), Source: "technical"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.MustAs(db.RoleMigrate).UpdateRisk(ctx, db.Fields{"day_start_equity": 10000.0}); err != nil {
+		t.Fatal(err)
+	}
+	rm.KVSet(ctx, "risk_day", "2026-11-10")
+	now := time.Date(2026, 11, 10, 15, 0, 0, 0, time.UTC)
+	if err := marks.Put(ctx, rm, map[string]float64{"A.US": 99}, "Intraday", now); err != nil {
+		t.Fatal(err)
+	}
+
+	// No day-start float recorded yet: realized only.
+	s := Load(ctx, dir, now)
+	if s.Err != nil {
+		t.Fatal(s.Err)
+	}
+	if f := s.Float(); f.Sum != -10 || !f.Complete {
+		t.Fatalf("float %+v", f)
+	}
+	if n := s.NetEquity(); n == nil || *n != 9990 {
+		t.Fatalf("net %v", n)
+	}
+	if day := s.Day(); day.WithFloat || day.PnL != 0 {
+		t.Fatalf("no day start: %+v", day)
+	}
+
+	// The roll recorded the float carried in (+5 at the old mark): today = −15.
+	rm.KVSet(ctx, "day_start_float", `{"day":"2026-11-10","sum":5,"complete":true}`)
+	if day := Load(ctx, dir, now).Day(); !day.WithFloat || day.PnL != -15 || day.Base != 10005 {
+		t.Fatalf("with float: %+v", day)
+	}
+	// A day start from another day, or an incomplete one, is not used.
+	rm.KVSet(ctx, "day_start_float", `{"day":"2026-11-09","sum":5,"complete":true}`)
+	if day := Load(ctx, dir, now).Day(); day.WithFloat {
+		t.Fatalf("stale day start used: %+v", day)
+	}
+	rm.KVSet(ctx, "day_start_float", `{"day":"2026-11-10","sum":5,"complete":false}`)
+	if day := Load(ctx, dir, now).Day(); day.WithFloat {
+		t.Fatalf("incomplete day start used: %+v", day)
+	}
 }

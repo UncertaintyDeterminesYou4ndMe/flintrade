@@ -41,13 +41,33 @@ func ConfigFiles(root string) []File {
 	return out
 }
 
+// Errors the app says in its own language (errors.Is / errors.As).
+var (
+	ErrGated     = errors.New("risk.toml is read-only until the Go backtest exists")
+	ErrEmpty     = errors.New("the content is empty")
+	ErrNoChanges = errors.New("nothing changed")
+)
+
+// CredsRejectedError: longbridge refused the new credentials. Output is its
+// stderr with the secrets masked.
+type CredsRejectedError struct {
+	Err    error
+	Output string
+}
+
+func (e *CredsRejectedError) Error() string {
+	return fmt.Sprintf("longbridge rejected these credentials: %v %s", e.Err, e.Output)
+}
+
+func (e *CredsRejectedError) Unwrap() error { return e.Err }
+
 // Validate checks content before it may be saved.
 func Validate(f File, content string) error {
 	if f.Gated {
-		return errors.New("risk.toml 改动需要先过回测;Go 版回测落地前只读")
+		return ErrGated
 	}
 	if strings.TrimSpace(content) == "" {
-		return errors.New("内容为空")
+		return ErrEmpty
 	}
 	if f.TOML {
 		return config.Parse(filepath.Base(f.Path), []byte(content))
@@ -155,7 +175,7 @@ func VerifyCreds(ctx context.Context, vals map[string]string, now time.Time) err
 		if len(msg) > 300 {
 			msg = msg[:300]
 		}
-		return fmt.Errorf("longbridge 拒绝了这组凭证: %v %s", err, msg)
+		return &CredsRejectedError{Err: err, Output: msg}
 	}
 	return nil
 }
@@ -175,7 +195,7 @@ func SaveCreds(ctx context.Context, path string, current, edits map[string]strin
 		}
 	}
 	if len(updates) == 0 {
-		return errors.New("没有改动")
+		return ErrNoChanges
 	}
 	if err := VerifyCreds(ctx, merged, now); err != nil {
 		return err
@@ -183,10 +203,10 @@ func SaveCreds(ctx context.Context, path string, current, edits map[string]strin
 	return creds.Update(path, updates)
 }
 
-// Mask shows only the last 4 characters of a secret.
+// Mask shows only the last 4 characters of a secret; "" for an unset one.
 func Mask(v string) string {
 	if v == "" {
-		return "(未设置)"
+		return ""
 	}
 	if len(v) <= 12 {
 		return strings.Repeat("•", 8)

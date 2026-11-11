@@ -243,6 +243,12 @@ func TestHardLesson_TerminalOrderFinishesIntent(t *testing.T) {
 			if c.status != "Filled" && e.count("SELECT count(*) FROM orders WHERE status IN ('submitted','partial')") != 0 {
 				t.Fatal("terminal order left open: it would be re-queried every round")
 			}
+			if c.status != "Filled" && c.pre == "" {
+				want := `{"key":"orderNoFill","args":{"status":"` + c.status + `"}}`
+				if n := e.count("SELECT count(*) FROM intents WHERE id=? AND reject_code=?", iid, want); n != 1 {
+					t.Fatalf("reject_code not %s", want)
+				}
+			}
 		})
 	}
 }

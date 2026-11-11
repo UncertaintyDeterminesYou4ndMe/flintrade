@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS intents (
     features      TEXT,                         -- JSON:决策当时的特征快照(RSI/VWAP/session/score…)
     status        TEXT    NOT NULL DEFAULT 'pending', -- pending|approved|rejected|filled|expired|cancelled
     reject_reason TEXT,
+    reject_code   TEXT,                         -- JSON {key,args}:reject_reason 的多语言形式(internal/reasoncode)
     created_at    TEXT    NOT NULL,
     decided_at    TEXT,
     expires_at    TEXT                          -- intent 时效;过期 Executor 不再执行

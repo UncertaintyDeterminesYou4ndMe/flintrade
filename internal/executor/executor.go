@@ -21,6 +21,7 @@ import (
 	"flintrade/internal/db"
 	"flintrade/internal/loop"
 	"flintrade/internal/pyfloat"
+	"flintrade/internal/reasoncode"
 	"flintrade/internal/riskgate"
 	"flintrade/internal/session"
 	"flintrade/internal/settle"
@@ -91,8 +92,8 @@ func (e *Executor) RunOnce(ctx context.Context) ([]string, error) {
 		if !isExit {
 			// Phase 1 arbitration: holding the opposite side → refuse; the
 			// producer must close first (prompt contract).
-			if reason := conflict(in, positions); reason != "" {
-				if err := e.reject(ctx, row.ID, reason); err != nil {
+			if reason, code := conflict(in, positions); reason != "" {
+				if err := e.reject(ctx, row.ID, reason, code); err != nil {
 					return log, err
 				}
 				log = append(log, fmt.Sprintf("[reject #%d %s] %s", row.ID, in.Symbol, reason))
@@ -102,7 +103,7 @@ func (e *Executor) RunOnce(ctx context.Context) ([]string, error) {
 			// rests, do not stack another (5 × 16 AMZN = $19.4K on a $10K sleeve).
 			if entryInflight(openOrders, in.Symbol) {
 				reason := "已有同标的在途开仓单(防止成交延迟期间重复下单)"
-				if err := e.reject(ctx, row.ID, reason); err != nil {
+				if err := e.reject(ctx, row.ID, reason, reasoncode.New("entryInFlight")); err != nil {
 					return log, err
 				}
 				log = append(log, fmt.Sprintf("[reject #%d %s] %s", row.ID, in.Symbol, reason))
@@ -126,7 +127,7 @@ func (e *Executor) RunOnce(ctx context.Context) ([]string, error) {
 			VolumeRatio: number(in.Features, "volume_ratio"), Now: e.d.Time(), OpenOrders: openOrders}
 		v := gate.Evaluate(in)
 		if !v.Approved {
-			if err := e.reject(ctx, row.ID, v.Reason); err != nil {
+			if err := e.reject(ctx, row.ID, v.Reason, v.Code); err != nil {
 				return log, err
 			}
 			log = append(log, fmt.Sprintf("[reject #%d %s] %s", row.ID, in.Symbol, v.Reason))
@@ -154,27 +155,28 @@ func entryInflight(orders []db.Order, symbol string) bool {
 	return false
 }
 
-func conflict(in riskgate.Intent, positions []db.Position) string {
+func conflict(in riskgate.Intent, positions []db.Position) (string, reasoncode.Code) {
 	for _, p := range positions {
 		if p.Symbol != in.Symbol {
 			continue
 		}
 		if (in.Side == "long" || in.Side == "short") && p.Side != in.Side {
-			return fmt.Sprintf("持有 %s %s,翻向需先平仓(close)再开(prompt 契约)", p.Side, in.Symbol)
+			return fmt.Sprintf("持有 %s %s,翻向需先平仓(close)再开(prompt 契约)", p.Side, in.Symbol),
+				reasoncode.New("flipNeedsClose", "side", p.Side, "symbol", in.Symbol)
 		}
-		return ""
+		return "", reasoncode.Code{}
 	}
-	return ""
+	return "", reasoncode.Code{}
 }
 
-func (e *Executor) reject(ctx context.Context, id int64, reason string) error {
-	return e.st.DecideIntent(ctx, id, "rejected", &reason)
+func (e *Executor) reject(ctx context.Context, id int64, reason string, code reasoncode.Code) error {
+	return e.st.DecideIntentCoded(ctx, id, "rejected", &reason, code.JSON())
 }
 
 // finishIntent closes out the intent riding on an order that reached a
 // terminal state. Only 'approved' is overwritten, so it is idempotent (same
 // discipline as the reconciler).
-func (e *Executor) finishIntent(ctx context.Context, intentID *int64, status, reason string) error {
+func (e *Executor) finishIntent(ctx context.Context, intentID *int64, status, reason string, code reasoncode.Code) error {
 	if intentID == nil || *intentID == 0 {
 		return nil
 	}
@@ -182,7 +184,7 @@ func (e *Executor) finishIntent(ctx context.Context, intentID *int64, status, re
 	if err != nil || it == nil || it.Status != "approved" {
 		return err
 	}
-	return e.st.DecideIntent(ctx, *intentID, status, &reason)
+	return e.st.DecideIntentCoded(ctx, *intentID, status, &reason, code.JSON())
 }
 
 // filledAtBroker re-checks an order after a cancel. Cancel and fill race:
@@ -218,7 +220,7 @@ func (e *Executor) cancelInflight(ctx context.Context, symbol string, log *[]str
 			if err := e.st.UpdateOrder(ctx, coid, db.Fields{"status": "cancelled"}); err != nil {
 				return false, err
 			}
-			if err := e.finishIntent(ctx, o.IntentID, "cancelled", "被新平仓意图清场撤单(未获券商单号)"); err != nil {
+			if err := e.finishIntent(ctx, o.IntentID, "cancelled", "被新平仓意图清场撤单(未获券商单号)", reasoncode.New("cancelledForClose")); err != nil {
 				return false, err
 			}
 			continue
@@ -236,7 +238,7 @@ func (e *Executor) cancelInflight(ctx context.Context, symbol string, log *[]str
 		if err := e.st.UpdateOrder(ctx, coid, db.Fields{"status": "cancelled"}); err != nil {
 			return false, err
 		}
-		if err := e.finishIntent(ctx, o.IntentID, "cancelled", "被新平仓意图清场撤单"); err != nil {
+		if err := e.finishIntent(ctx, o.IntentID, "cancelled", "被新平仓意图清场撤单", reasoncode.New("cancelledForClose")); err != nil {
 			return false, err
 		}
 		how := "撤单失败但券商侧无成交"
@@ -290,7 +292,8 @@ func (e *Executor) expireStaleEntries(ctx context.Context, ttlMin float64, log *
 		ttl := riskgate.TomlNum(ttlMin)
 		if o.IntentID != nil && *o.IntentID != 0 {
 			reason := fmt.Sprintf("开仓挂单 %dmin 未成交 > TTL %smin,已撤单", int(ageMin), ttl)
-			if err := e.st.DecideIntent(ctx, *o.IntentID, "expired", &reason); err != nil {
+			code := reasoncode.New("ttlExpired", "age", strconv.Itoa(int(ageMin)), "ttl", ttl)
+			if err := e.st.DecideIntentCoded(ctx, *o.IntentID, "expired", &reason, code.JSON()); err != nil {
 				return err
 			}
 		}
@@ -317,7 +320,7 @@ func (e *Executor) execute(ctx context.Context, row db.Intent, in riskgate.Inten
 		}
 		if !proceed {
 			reason := "在途平仓单已成交,本意图作废"
-			if err := e.st.DecideIntent(ctx, row.ID, "cancelled", &reason); err != nil {
+			if err := e.st.DecideIntentCoded(ctx, row.ID, "cancelled", &reason, reasoncode.New("closeAlreadyFilled").JSON()); err != nil {
 				return false, "", err
 			}
 			return false, "在途平仓单已成交,跳过重复下单", nil
@@ -374,7 +377,8 @@ func (e *Executor) execute(ctx context.Context, row db.Intent, in riskgate.Inten
 			return false, "", err
 		}
 		reason := fmt.Sprintf("broker[%s] orth=%s sess=%s: %s", res.Status, orth, sess, runes(res.Raw, 400))
-		if err := e.st.DecideIntent(ctx, row.ID, "rejected", &reason); err != nil {
+		code := reasoncode.New("brokerRejected", "status", res.Status, "orth", orth, "session", sess, "raw", runes(res.Raw, 400))
+		if err := e.st.DecideIntentCoded(ctx, row.ID, "rejected", &reason, code.JSON()); err != nil {
 			return false, "", err
 		}
 		return false, fmt.Sprintf("broker 拒单/失败 (orth=%s sess=%s): %s", orth, sess, res.Raw), nil

@@ -23,6 +23,7 @@ import (
 
 	"flintrade/internal/db"
 	"flintrade/internal/loop"
+	"flintrade/internal/marks"
 	"flintrade/internal/session"
 )
 
@@ -107,6 +108,10 @@ func (m *Monitor) dailyReset(ctx context.Context, log *[]string) error {
 	if err := m.store.KVSet(ctx, "risk_day", today); err != nil {
 		return err
 	}
+	// After risk_day: a failure here must not re-run the roll next round.
+	if err := marks.PutDayStart(ctx, m.store, today); err != nil {
+		*log = append(*log, fmt.Sprintf("[error] day-start float: %v", err))
+	}
 	*log = append(*log, fmt.Sprintf("[daily-reset] 新交易日 %s: day_start_equity=%s, day_realized_pnl=0, halt 已清", today, pyOpt(equity)))
 	return nil
 }
@@ -154,7 +159,7 @@ func (m *Monitor) PositionGuards(ctx context.Context, log *[]string) error {
 		}
 	}
 	if len(watched) == 0 {
-		return nil
+		return nil // nothing to guard costs no quote call
 	}
 	sess := m.Session(ctx)
 	if sess == session.Closed {
@@ -164,13 +169,18 @@ func (m *Monitor) PositionGuards(ctx context.Context, log *[]string) error {
 	if err != nil {
 		return err
 	}
-	syms := make([]string, len(watched))
-	for i, p := range watched {
+	// Once a request is made, every open position rides along in the same
+	// batch: it also feeds the app's floating P&L (internal/marks).
+	syms := make([]string, len(positions))
+	for i, p := range positions {
 		syms[i] = p.Symbol
 	}
 	// Session-aware prices: the top-level last is the prior regular close
 	// outside RTH — that stale price hid the 07-31 gap.
 	prices := m.Prices(ctx, syms, sess)
+	if err := marks.Put(ctx, m.store, prices, sess, m.d.Time()); err != nil {
+		*log = append(*log, fmt.Sprintf("[error] marks: %v", err)) // display only; guards go on
+	}
 	prio := risk.Priority["user"] + 1
 	// Minute bucket in the dedup key: the unique index ignores status, so a
 	// fixed key, once rejected, could never be resubmitted. One retry per

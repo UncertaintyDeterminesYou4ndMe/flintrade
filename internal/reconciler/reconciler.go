@@ -28,6 +28,7 @@ import (
 	"flintrade/internal/db"
 	"flintrade/internal/loop"
 	"flintrade/internal/pyfloat"
+	"flintrade/internal/reasoncode"
 	"flintrade/internal/settle"
 )
 
@@ -74,7 +75,7 @@ func (r *Reconciler) RunOnce(ctx context.Context) ([]string, error) {
 // finishIntent moves an intent out of 'approved' when its order reaches a
 // terminal state. Only 'approved' is touched: pending has not reached the
 // executor yet, and an already-terminal intent is not rewritten (idempotent).
-func finishIntent(ctx context.Context, s *db.Store, intentID *int64, status string, reason *string) error {
+func finishIntent(ctx context.Context, s *db.Store, intentID *int64, status string, reason *string, code reasoncode.Code) error {
 	if intentID == nil || *intentID == 0 {
 		return nil
 	}
@@ -89,7 +90,7 @@ func finishIntent(ctx context.Context, s *db.Store, intentID *int64, status stri
 	if cur != "approved" {
 		return nil
 	}
-	return s.DecideIntent(ctx, *intentID, status, reason)
+	return s.DecideIntentCoded(ctx, *intentID, status, reason, code.JSON())
 }
 
 // ── duty 1: settle resting orders ────────────────────────────────────────
@@ -215,7 +216,8 @@ func (r *Reconciler) settleOne(ctx context.Context, o db.Order, commission float
 			if err := tx.UpdateOrder(ctx, coid, db.Fields{"status": st}); err != nil {
 				return err
 			}
-			return finishIntent(ctx, tx, o.IntentID, istatus, db.Ptr(fmt.Sprintf("order %s 无成交", label)))
+			return finishIntent(ctx, tx, o.IntentID, istatus, db.Ptr(fmt.Sprintf("order %s 无成交", label)),
+				reasoncode.New("orderNoFill", "status", label))
 		})
 		if err != nil {
 			return "", err
@@ -255,7 +257,7 @@ func (r *Reconciler) settleOne(ctx context.Context, o db.Order, commission float
 			}
 			if terminal {
 				line = fmt.Sprintf("[settle-skip #%s] 已结算过(boid=%s),防重跳过", coid, boid)
-				return finishIntent(ctx, tx, o.IntentID, "filled", nil)
+				return finishIntent(ctx, tx, o.IntentID, "filled", nil, reasoncode.Code{})
 			}
 			return nil // partial, nothing new since last round
 		}
@@ -325,7 +327,7 @@ func (r *Reconciler) settleOne(ctx context.Context, o db.Order, commission float
 			if pos == nil {
 				line = fmt.Sprintf("[settle-skip #%s] %s %s:无对应持仓可平(可能已被结算)", coid, o.Side, o.Symbol)
 				if terminal {
-					return finishIntent(ctx, tx, o.IntentID, "filled", nil)
+					return finishIntent(ctx, tx, o.IntentID, "filled", nil, reasoncode.Code{})
 				}
 				return nil
 			}
@@ -357,7 +359,7 @@ func (r *Reconciler) settleOne(ctx context.Context, o db.Order, commission float
 			}
 		}
 		if terminal {
-			return finishIntent(ctx, tx, o.IntentID, "filled", nil)
+			return finishIntent(ctx, tx, o.IntentID, "filled", nil, reasoncode.Code{})
 		}
 		return nil
 	})

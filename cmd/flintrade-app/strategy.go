@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/editor"
 
+	"flintrade/cmd/flintrade-app/locales"
 	"flintrade/internal/dash"
 )
 
@@ -74,7 +75,7 @@ func (a *app) strategyPage(c *ui.Context) {
 	cur := a.current()
 	ui.Column(c).Grow(1).Padding(pageInset...).Gap(12).Children(func() {
 		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			sectionTitle(c, "策略")
+			sectionTitle(c, locales.StrategyTitle())
 			if ui.Select(c, &st.sel, st.names).Width(280).Changed() {
 				st.err, st.msg = "", ""
 			}
@@ -83,14 +84,14 @@ func (a *app) strategyPage(c *ui.Context) {
 				return
 			}
 			modified := cur.ed.Buffer.String() != cur.disk
-			if ui.Button(c, "放弃修改").Disabled(!modified).Clicked() {
+			if ui.Button(c, locales.StrategyDiscard()).Disabled(!modified).Clicked() {
 				st.err, st.msg = "", ""
 				_ = cur.reload()
 			}
-			if ui.PrimaryButton(c, "检查并保存").Disabled(!modified || cur.file.Gated).Clicked() {
+			if ui.PrimaryButton(c, locales.StrategyCheckSave()).Disabled(!modified || cur.file.Gated).Clicked() {
 				st.msg = ""
 				if err := dash.Validate(cur.file, cur.ed.Buffer.String()); err != nil {
-					st.err = err.Error()
+					st.err = errText(err)
 				} else {
 					st.err = ""
 					st.diff = &editor.DiffState{Old: editor.NewBuffer(cur.disk), New: editor.NewBuffer(cur.ed.Buffer.String()),
@@ -100,16 +101,16 @@ func (a *app) strategyPage(c *ui.Context) {
 			}
 		})
 		if cur == nil {
-			ui.Text(c, "没有可编辑的文件").TextColor(t.TextMuted)
+			ui.Text(c, locales.StrategyNoFiles()).TextColor(t.TextMuted)
 			return
 		}
 		switch {
 		case cur.file.Gated:
-			ui.Text(c, "风控数值改动必须先过回测(CLAUDE.md)。Go 版回测落地前这里只读。").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, locales.StrategyNoteGated()).FontSize(12).TextColor(t.TextMuted)
 		case cur.file.TOML:
-			ui.Text(c, "保存前按 daemon 的严格规则解析:未知字段、类型错误都会被拒。daemon 重启后生效。").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, locales.StrategyNoteToml()).FontSize(12).TextColor(t.TextMuted)
 		default:
-			ui.Text(c, "生产者的 system prompt:改的是交易判断。改完建议跑回测再上线。daemon 重启后生效。").FontSize(12).TextColor(t.TextMuted)
+			ui.Text(c, locales.StrategyNotePrompt()).FontSize(12).TextColor(t.TextMuted)
 		}
 		if st.err != "" {
 			ui.Text(c, st.err).TextColor(t.Accent).Selectable()
@@ -123,32 +124,32 @@ func (a *app) strategyPage(c *ui.Context) {
 	if st.confirm && cur != nil {
 		ui.Modal(c, &st.confirm, func() {
 			ui.Column(c).Width(880).Height(560).Padding(20).Gap(12).Children(func() {
-				ui.Text(c, "保存 "+cur.file.Name).FontSize(16).Bold()
+				ui.Text(c, locales.StrategySaveTitle(cur.file.Name)).FontSize(16).Bold()
 				editor.DiffView(c, st.diff).Grow(1).FillWidth()
 				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-					if ui.Button(c, "取消").Clicked() {
+					if ui.Button(c, locales.CommonCancel()).Clicked() {
 						st.confirm = false
 					}
 					save := func(restart bool) {
 						st.confirm = false
 						content := cur.ed.Buffer.String()
 						if err := dash.Save(cur.file, content); err != nil {
-							st.err = err.Error()
+							st.err = errText(err)
 							return
 						}
 						cur.disk = content
 						cur.ed.Buffer.MarkSaved()
-						st.msg = "已保存 " + cur.file.Path
+						st.msg = locales.StrategySaved(cur.file.Path)
 						if restart {
 							a.restart()
 						} else {
-							st.msg += ";daemon 重启后生效"
+							st.msg = locales.StrategySavedLater(cur.file.Path)
 						}
 					}
-					if ui.Button(c, "只保存").Clicked() {
+					if ui.Button(c, locales.StrategySaveOnly()).Clicked() {
 						save(false)
 					}
-					if ui.PrimaryButton(c, "保存并重启 daemon").Clicked() {
+					if ui.PrimaryButton(c, locales.StrategySaveRestart()).Clicked() {
 						save(true)
 					}
 				})

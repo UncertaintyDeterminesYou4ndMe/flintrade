@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"flintrade/cmd/flintrade-app/locales"
 	"flintrade/internal/db"
 )
 
@@ -41,11 +42,6 @@ func signed(v float64) string {
 		return "+" + money(v)
 	}
 	return money(v)
-}
-
-// signedPlain: +12.30 / −23.76 / 0.00, for the menu bar.
-func signedPlain(v float64) string {
-	return strings.Replace(signed(v), "$", "", 1)
 }
 
 func moneyP(v *float64) string {
@@ -86,15 +82,16 @@ func localTime(ts string) string {
 }
 
 func ago(d time.Duration) string {
+	d = max(d, 0) // a row stamped a moment after the snapshot
 	switch {
 	case d < time.Minute:
-		return fmt.Sprintf("%d 秒前", int(d.Seconds()))
+		return locales.AgoSeconds(int(d.Seconds()))
 	case d < time.Hour:
-		return fmt.Sprintf("%d 分钟前", int(d.Minutes()))
+		return locales.AgoMinutes(int(d.Minutes()))
 	case d < 48*time.Hour:
-		return fmt.Sprintf("%.1f 小时前", d.Hours())
+		return locales.AgoHours(fmt.Sprintf("%.1f", d.Hours()))
 	}
-	return fmt.Sprintf("%.1f 天前", d.Hours()/24)
+	return locales.AgoDays(fmt.Sprintf("%.1f", d.Hours()/24))
 }
 
 func every(d time.Duration) string {
@@ -102,9 +99,9 @@ func every(d time.Duration) string {
 	case d == 0:
 		return none
 	case d < time.Minute:
-		return fmt.Sprintf("%d 秒", int(d.Seconds()))
+		return locales.EverySeconds(int(d.Seconds()))
 	case d < time.Hour:
-		return fmt.Sprintf("%d 分钟", int(d.Minutes()))
+		return locales.EveryMinutes(int(d.Minutes()))
 	}
-	return fmt.Sprintf("%.1f 小时", d.Hours())
+	return locales.EveryHours(fmt.Sprintf("%.1f", d.Hours()))
 }

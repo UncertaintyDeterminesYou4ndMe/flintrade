@@ -10,31 +10,35 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/chart"
 
+	"flintrade/cmd/flintrade-app/locales"
 	"flintrade/internal/dash"
 	"flintrade/internal/db"
+	"flintrade/internal/marks"
 )
 
-var pages = [][2]string{{"overview", "总览"}, {"trades", "成交"}, {"intents", "意图"}, {"memory", "复盘"},
-	{"strategy", "策略"}, {"creds", "凭证"}}
+func pageItems() [][2]string {
+	return [][2]string{{"overview", locales.NavOverview()}, {"trades", locales.NavTrades()}, {"intents", locales.NavIntents()},
+		{"memory", locales.NavMemory()}, {"strategy", locales.NavStrategy()}, {"creds", locales.NavCreds()}}
+}
 
 func (a *app) view(c *ui.Context) {
 	t := useTheme(c)
 	if a.rootErr != nil {
 		ui.Column(c).Fill().Center().Gap(8).Padding(32).Children(func() {
-			ui.Text(c, "找不到 Flintrade 仓库").FontSize(22)
+			ui.Text(c, locales.StatusRepoMissing()).FontSize(22)
 			ui.Text(c, a.rootErr.Error()).TextColor(t.TextMuted).Selectable()
-			ui.Text(c, "App 从 launchd 任务 com.flintrade.daemon 的 WorkingDirectory 定位仓库,或读环境变量 FLINTRADE_DIR。").TextColor(t.TextMuted)
+			ui.Text(c, locales.ViewRepoHint()).TextColor(t.TextMuted)
 		})
 		return
 	}
 	if a.snap == nil {
-		ui.Column(c).Fill().Center().Children(func() { ui.Text(c, "读取中").TextColor(t.TextMuted) })
+		ui.Column(c).Fill().Center().Children(func() { ui.Text(c, locales.StatusLoading()).TextColor(t.TextMuted) })
 		return
 	}
 	ui.Column(c).Fill().Children(func() {
 		ui.Column(c).Padding(18, 32, 10, 32).Gap(14).Children(func() {
 			a.header(c, a.snap, t)
-			pills(c, &a.page, pages)
+			pills(c, &a.page, pageItems())
 		})
 		ui.Column(c).Grow(1).Children(func() {
 			switch a.page {
@@ -53,8 +57,8 @@ func (a *app) view(c *ui.Context) {
 			}
 		})
 	})
-	switch ui.AlertDialog(c, &a.confirmRestart, "重启 daemon?",
-		"launchd 会结束当前进程并立刻重新启动。挂单和持仓都在账本里,新进程接着跟踪。", "取消", "重启") {
+	switch ui.AlertDialog(c, &a.confirmRestart, locales.ViewRestartTitle(),
+		locales.ViewRestartBody(), locales.CommonCancel(), locales.CommonRestart()) {
 	case 1:
 		a.restart()
 	}
@@ -76,12 +80,12 @@ func (a *app) header(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 		if s.Live {
 			mode, modeC = "LIVE", t.Success
 		}
-		state, stateC := "daemon 运行中", t.Success
+		state, stateC := locales.StatusDaemonRunning(), t.Success
 		switch {
 		case s.DaemonDown():
-			state, stateC = "daemon 已停止", t.Danger
+			state, stateC = locales.StatusDaemonStopped(), t.Danger
 		case s.Halted():
-			state, stateC = "已暂停开新仓", t.Danger
+			state, stateC = locales.StatusEntriesPaused(), t.Danger
 		}
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(7, 14).Radius(999).Background(t.Surface).Children(func() {
 			dot(c, modeC)
@@ -91,9 +95,9 @@ func (a *app) header(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 			ui.Text(c, state).FontSize(13)
 		})
 		ui.Text(c, s.At.Format("15:04:05")).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted)
-		label := "重启 daemon"
+		label := locales.CommonRestartDaemon()
 		if a.restarting {
-			label = "重启中"
+			label = locales.HeaderRestarting()
 		}
 		if ui.Button(c, label).Radius(999).Disabled(a.restarting).Clicked() {
 			a.confirmRestart = true
@@ -103,10 +107,10 @@ func (a *app) header(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 		ui.Text(c, a.notice).FontSize(12).TextColor(t.TextMuted)
 	}
 	if s.Err != nil {
-		ui.Text(c, "账本读取不完整:"+s.Err.Error()).FontSize(12).TextColor(t.Danger).Selectable()
+		ui.Text(c, locales.HeaderLedgerError(s.Err.Error())).FontSize(12).TextColor(t.Danger).Selectable()
 	}
 	for _, p := range s.TokenProblems {
-		ui.Text(c, "凭证:"+p.Message).FontSize(12).TextColor(t.Danger)
+		ui.Text(c, locales.HeaderCredProblem(p.Key, p.Message)).FontSize(12).TextColor(t.Danger)
 	}
 }
 
@@ -136,54 +140,138 @@ func (a *app) leftColumn(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 	for _, r := range s.Symbols {
 		recs[r.Symbol] = r
 	}
-	ui.Row(c).AlignItems(ui.End).Gap(10).Children(func() {
-		sectionTitle(c, "持仓")
-		if s.Risk != nil {
-			ui.Text(c, "在险 "+money(s.Risk.OpenRisk)).FontSize(13).TextColor(t.TextMuted).Padding(0, 0, 3, 0)
-		}
-	})
+	sectionTitle(c, locales.PositionTitle())
+	if len(s.Positions) > 0 {
+		ui.Column(c).Gap(2).Padding(0, 0, 4, 0).Children(func() {
+			ui.Text(c, floatLabel(s)).FontSize(13).FontFeatures("tnum").TextColor(pnlColor(t, s.Float().Sum))
+			ui.Text(c, allStopsLabel(s.Positions)).FontSize(13).FontFeatures("tnum").TextColor(t.TextMuted)
+		})
+	}
 	if len(s.Positions) == 0 && len(s.Orders) == 0 {
-		ui.Text(c, "空仓").TextColor(t.TextMuted).Padding(10, 0)
+		ui.Text(c, locales.PositionNone()).TextColor(t.TextMuted).Padding(10, 0)
 		ui.Divider(c)
 	}
 	for _, p := range s.Positions {
-		sub := fmt.Sprintf("%s %d 股 · 止损 %s", sideZh(p.Side), p.Qty, price(p.Stop))
-		r := recs[p.Symbol]
-		row(c, "pos-"+p.Symbol, short(p.Symbol), sub, r.Series, 0,
-			fmt.Sprintf("%.2f", p.EntryPrice), "风险 "+moneyP(p.RiskAmt), math.NaN())
+		positionRow(c, s, p, recs[p.Symbol].Series)
 	}
 	for _, o := range s.Orders {
-		sub := fmt.Sprintf("挂单 %s %d · 已成 %d", o.Side, o.Qty, o.FilledQty)
+		sub := locales.PositionOrder(o.Side, fmt.Sprint(o.Qty), fmt.Sprint(o.FilledQty))
 		row(c, "ord-"+o.ClientOrderID, short(o.Symbol), sub, nil, 0, price(o.Price), o.Status, math.NaN())
 	}
 
 	ui.Row(c).Height(18)
 	ui.Row(c).AlignItems(ui.End).Gap(10).Children(func() {
-		sectionTitle(c, "标的战绩")
-		ui.Text(c, "策略平仓累计").FontSize(13).TextColor(t.TextMuted).Padding(0, 0, 3, 0)
+		sectionTitle(c, locales.PositionRecords())
+		ui.Text(c, locales.OverviewCumulative()).FontSize(13).TextColor(t.TextMuted).Padding(0, 0, 3, 0)
 	})
 	for i, r := range s.Symbols {
 		if i == 14 {
 			break
 		}
-		sub := fmt.Sprintf("%d 笔 · 胜率 %.0f%%", r.N, float64(r.Wins)/float64(r.N)*100)
+		sub := locales.PositionRecordSub(r.N, fmt.Sprintf("%.0f", float64(r.Wins)/float64(r.N)*100))
 		avg := r.Net / float64(r.N)
-		row(c, "rec-"+r.Symbol, short(r.Symbol), sub, r.Series, 0, signed(r.Net), "均 "+signed(avg), avg)
+		row(c, "rec-"+r.Symbol, short(r.Symbol), sub, r.Series, 0, signed(r.Net), locales.PositionAvg(signed(avg)), avg)
 	}
+}
+
+// floatLabel: "Unrealized P&L +$12.30"; "—" when no position has a price, so a missing
+// price never reads as a flat zero.
+func floatLabel(s *dash.Snapshot) string {
+	f := s.Float()
+	switch {
+	case len(s.Marks) == 0:
+		return locales.PositionFloatNoPrice()
+	case !f.Complete:
+		return locales.PositionFloatPartial(signed(f.Sum))
+	}
+	return locales.CommonFloat(signed(f.Sum))
+}
+
+// atStop is the P&L from entry if the position is stopped out at its current
+// stop: negative is the loss the stop allows, positive a profit it locks in.
+func atStop(p db.Position) (float64, bool) {
+	if p.Stop == nil {
+		return 0, false
+	}
+	return marks.PnL(p, *p.Stop), true
+}
+
+// allStopsLabel sums atStop over the positions: what every stop being hit
+// would add up to.
+func allStopsLabel(ps []db.Position) string {
+	sum, bare := 0.0, false
+	for _, p := range ps {
+		if v, ok := atStop(p); ok {
+			sum += v
+		} else {
+			bare = true
+		}
+	}
+	if bare {
+		return locales.PositionAllStopsBare(signed(sum))
+	}
+	return locales.PositionAllStops(signed(sum))
+}
+
+// positionRow: cost and stop on the left; on the right the last price the
+// risk monitor saw, the floating P&L at it, and how old that price is.
+func positionRow(c *ui.Context, s *dash.Snapshot, p db.Position, ys []float64) {
+	t := c.Theme()
+	m, priced := s.Marks[p.Symbol]
+	ui.Column(c.Key("pos-" + p.Symbol)).Gap(0).Children(func() {
+		ui.Row(c).Gap(12).AlignItems(ui.Center).Padding(10, 0).Children(func() {
+			ui.Column(c).Width(120).Gap(2).Children(func() {
+				ui.Text(c, short(p.Symbol)).FontSize(15).NoWrap()
+				ui.Text(c, locales.PositionHeld(sideName(p.Side), fmt.Sprint(p.Qty), fmt.Sprintf("%.2f", p.EntryPrice))).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+				ui.Text(c, locales.PositionStop(price(p.Stop))).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+			})
+			spark(c, ys, 0).Width(76).Height(30)
+			ui.Column(c).Grow(1).AlignItems(ui.End).Gap(2).Children(func() {
+				atStopV := none
+				if v, ok := atStop(p); ok {
+					atStopV = signed(v)
+				}
+				if !priced {
+					ui.Text(c, none).FontSize(15).NoWrap()
+					ui.Text(c, locales.PositionNoPrice()).FontSize(12).TextColor(t.TextMuted).NoWrap()
+				} else {
+					v := marks.PnL(p, m.Price)
+					// The quote's age sits beside the price it dates; the
+					// column is too narrow to add it to the line below.
+					ui.Row(c).Gap(8).AlignItems(ui.Baseline).Children(func() {
+						ui.Text(c, ago(s.At.Sub(m.Time()))).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+						ui.Text(c, fmt.Sprintf("%.2f", m.Price)).FontSize(15).FontFeatures("tnum").NoWrap()
+					})
+					change(c, signed(v)+" "+pct(v/(p.EntryPrice*float64(p.Qty))*100), v, 12)
+				}
+				ui.Text(c, locales.PositionAtStop(atStopV)).FontSize(12).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+			})
+		})
+		ui.Divider(c)
+	})
 }
 
 func (a *app) cards(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 	ui.Row(c).Gap(12).AlignItems(ui.Stretch).Children(func() {
 		// Equity against the inception sleeve.
 		card(c, func() {
-			ui.Text(c, "权益").FontSize(16)
+			ui.Text(c, locales.OverviewNetEquity()).FontSize(16)
 			eq := none
-			if s.Risk != nil && s.Risk.Equity != nil {
-				eq = money(*s.Risk.Equity)
+			if n := s.NetEquity(); n != nil {
+				eq = money(*n)
+				if r := s.Return(); r != nil {
+					eq += " (" + signed(*r) + ")"
+				}
 			}
 			ui.Text(c, eq).FontSize(14).FontFeatures("tnum").TextColor(t.TextMuted)
+			if s.Risk != nil && s.Risk.Equity != nil {
+				split := locales.OverviewRealized(money(*s.Risk.Equity))
+				if len(s.Positions) > 0 {
+					split = locales.OverviewRealizedFloat(money(*s.Risk.Equity), floatLabel(s))
+				}
+				ui.Text(c, split).FontSize(14).FontFeatures("tnum").TextColor(t.TextMuted).NoWrap()
+			}
 			if r := s.Return(); r != nil {
-				ui.Text(c, "("+signed(*r)+")").FontSize(14).FontFeatures("tnum").TextColor(t.TextMuted)
 				change(c, pct(*r/s.InceptionEquity*100), *r, 20)
 			}
 			ys := []float64{s.InceptionEquity}
@@ -194,46 +282,52 @@ func (a *app) cards(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 		}).Grow(1)
 
 		card(c, func() {
-			ui.Text(c, "今日").FontSize(16)
+			ui.Text(c, locales.OverviewToday()).FontSize(16)
 			n := len(s.DaySeries)
-			ui.Text(c, fmt.Sprintf("已平仓 %d 笔", n)).FontSize(14).TextColor(t.TextMuted)
-			day := s.DayPnL()
+			day := s.Day()
+			basis := "realized"
+			if day != nil && day.WithFloat {
+				basis = "float"
+			}
+			ui.Text(c, locales.OverviewClosedToday(n, basis)).FontSize(14).TextColor(t.TextMuted)
 			if day != nil {
-				ui.Text(c, "("+signed(*day)+")").FontSize(14).FontFeatures("tnum").TextColor(t.TextMuted)
-				base := *s.Risk.DayStartEquity
-				change(c, pct(*day/base*100), *day, 20)
+				ui.Text(c, "("+signed(day.PnL)+")").FontSize(14).FontFeatures("tnum").TextColor(t.TextMuted)
+				change(c, pct(day.PnL/day.Base*100), day.PnL, 20)
 			}
 			spark(c, append([]float64{0}, s.DaySeries...), 0).Height(64)
 		}).Grow(1)
 
 		card(c, func() {
-			ui.Text(c, "胜率").FontSize(16)
+			ui.Text(c, locales.OverviewWinRate()).FontSize(16)
 			n, wins := 0, 0
 			for _, r := range s.Symbols {
 				n, wins = n+r.N, wins+r.Wins
 			}
-			ui.Text(c, fmt.Sprintf("策略平仓 %d 笔", n)).FontSize(14).TextColor(t.TextMuted)
+			ui.Text(c, locales.OverviewStrategyCloses(n)).FontSize(14).TextColor(t.TextMuted)
 			if len(s.WinRateSeries) > 0 {
 				last := s.WinRateSeries[len(s.WinRateSeries)-1]
-				ui.Text(c, fmt.Sprintf("(全部 %.1f%%)", float64(wins)/float64(max(n, 1))*100)).FontSize(14).TextColor(t.TextMuted)
-				change(c, fmt.Sprintf("近 20 笔 %.0f%%", last*100), last-0.5, 20)
+				ui.Text(c, locales.OverviewWinRateAll(fmt.Sprintf("%.1f", float64(wins)/float64(max(n, 1))*100))).FontSize(14).TextColor(t.TextMuted)
+				change(c, locales.OverviewWinRateRecent(fmt.Sprintf("%.0f", last*100)), last-0.5, 20)
 			}
 			spark(c, tail(s.WinRateSeries, 120), 0.5).Height(64)
 		}).Grow(1)
 	})
 }
 
-var ranges = [][2]string{{"1w", "1 周"}, {"1m", "1 月"}, {"3m", "3 月"}, {"all", "全部"}}
+func rangeItems() [][2]string {
+	return [][2]string{{"1w", locales.OverviewRange1w()}, {"1m", locales.OverviewRange1m()}, {"3m", locales.OverviewRange3m()},
+		{"all", locales.OverviewRangeAll()}}
+}
 
 func (a *app) equityChart(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 	ui.Column(c).Gap(12).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			sectionTitle(c, "权益走势")
+			sectionTitle(c, locales.OverviewCumulative())
 			ui.Spacer(c)
 			if a.rangeSel == "" {
 				a.rangeSel = "all"
 			}
-			pills(c, &a.rangeSel, ranges)
+			pills(c, &a.rangeSel, rangeItems())
 		})
 		pts := s.Curve
 		since := map[string]time.Duration{"1w": 7 * 24 * time.Hour, "1m": 30 * 24 * time.Hour, "3m": 91 * 24 * time.Hour}[a.rangeSel]
@@ -247,7 +341,7 @@ func (a *app) equityChart(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 			pts = pts[i:]
 		}
 		if len(pts) < 2 {
-			ui.Text(c, "这段时间平仓不足两笔").TextColor(t.TextMuted).Padding(40, 0)
+			ui.Text(c, locales.OverviewChartEmpty()).TextColor(t.TextMuted).Padding(40, 0)
 			return
 		}
 		last := pts[len(pts)-1].Equity
@@ -286,27 +380,27 @@ func (a *app) equityChart(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 				p.StrokePath((&ui.Path{}).MoveTo(r.X, chart.Y(r, by)).LineTo(r.X+r.W, chart.Y(r, by)).Dash(0, 2, 4), 1, t.TextMuted.Alpha(0.8))
 				p.StrokePath(chart.Line(r, xs, ys, chart.CurveLinear), 2, col)
 			})
-		}).Height(260).Gap(8).Label("权益走势")
-		ui.Text(c, "按策略平仓逐笔累计;虚线是区间起点。开仓佣金与 test / outage 归属的成交不计,所以终点与账面权益略有出入。").
+		}).Height(260).Gap(8).Label(locales.OverviewCumulative())
+		ui.Text(c, locales.OverviewChartNote()).
 			FontSize(12).TextColor(t.TextMuted)
 	})
 }
 
 func (a *app) health(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 	ui.Column(c).Gap(10).Children(func() {
-		sectionTitle(c, "运行状况")
+		sectionTitle(c, locales.OverviewHealth())
 		var stale []string
 		for _, l := range s.Loops {
 			if l.Stale && l.Core {
 				stale = append(stale, l.Name)
 			}
 		}
-		line := "交易链路正常:executor、reconciler、risk_monitor 都在按节奏心跳。"
+		line := locales.OverviewHealthOk()
 		switch {
 		case len(stale) > 0:
-			line = "交易链路中断:" + strings.Join(stale, "、") + " 没有心跳。"
+			line = locales.OverviewHealthDown(strings.Join(stale, locales.CommonListSeparator()))
 		case s.Halted():
-			line = "风控已暂停开新仓:" + str(s.Risk.HaltReason) + "。平仓仍会执行。"
+			line = locales.OverviewHealthHalted(str(s.Risk.HaltReason))
 		}
 		ui.Text(c, line).FontSize(16).LineHeight(1.5)
 		ui.Grid(c).Columns(2).Gap(10).Children(func() {
@@ -318,7 +412,7 @@ func (a *app) health(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 						col = t.Danger
 					}
 				}
-				last := "从未"
+				last := locales.OverviewLoopNever()
 				if !l.LastBeat.IsZero() {
 					last = ago(l.Age)
 				}
@@ -326,7 +420,7 @@ func (a *app) health(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 					dot(c, col)
 					ui.Text(c, l.Name).FontSize(14).Width(130)
 					ui.Text(c, last).FontSize(13).TextColor(t.TextMuted)
-					ui.Text(c, "每 "+every(l.Cadence)).FontSize(13).TextColor(t.TextMuted)
+					ui.Text(c, locales.OverviewLoopEvery(every(l.Cadence))).FontSize(13).TextColor(t.TextMuted)
 				})
 			}
 		})
@@ -365,14 +459,14 @@ func (a *app) feed(c *ui.Context, s *dash.Snapshot, t *ui.Theme) {
 		if err != nil {
 			continue
 		}
-		items = append(items, feedItem{t: ts, who: in.Source, text: fmt.Sprintf("意图 #%d %s %s · %s", in.ID, sideZh(in.Side), short(in.Symbol), statusZh(in.Status))})
+		items = append(items, feedItem{t: ts, who: in.Source, text: locales.OverviewFeedIntent(fmt.Sprint(in.ID), sideName(in.Side), short(in.Symbol), statusName(in.Status))})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].t.After(items[j].t) })
 	items = items[:min(len(items), 14)]
 
 	ui.Column(c).Gap(10).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			sectionTitle(c, "最新动态")
+			sectionTitle(c, locales.OverviewFeed())
 			if !s.DaemonDown() {
 				ui.Text(c, "Live").FontSize(12).TextColor(t.Background).Background(t.Danger).Padding(1, 8).Radius(999)
 			}
@@ -401,27 +495,39 @@ func tail(xs []float64, n int) []float64 {
 // short drops the market suffix: GLD.US → GLD.
 func short(sym string) string { return strings.TrimSuffix(sym, ".US") }
 
-func sideZh(s string) string {
+func sideName(s string) string {
 	switch s {
 	case "long":
-		return "多"
+		return locales.SideLong()
 	case "short":
-		return "空"
+		return locales.SideShort()
 	case "close":
-		return "平"
+		return locales.SideClose()
 	}
 	return s
 }
 
-func statusZh(s string) string {
-	return map[string]string{"pending": "待执行", "approved": "已批准", "rejected": "被拒", "filled": "已成交",
-		"failed": "失败", "expired": "过期", "submitted": "已提交", "executed": "已执行"}[s] + orIf(s)
-}
-
-func orIf(s string) string {
-	if _, ok := map[string]bool{"pending": true, "approved": true, "rejected": true, "filled": true, "failed": true,
-		"expired": true, "submitted": true, "executed": true}[s]; ok {
-		return ""
+// statusName names an intent or order status; an unknown one stays as it is.
+func statusName(s string) string {
+	switch s {
+	case "pending":
+		return locales.StatusPending()
+	case "approved":
+		return locales.StatusApproved()
+	case "rejected":
+		return locales.StatusRejected()
+	case "filled":
+		return locales.StatusFilled()
+	case "failed":
+		return locales.StatusFailed()
+	case "expired":
+		return locales.StatusExpired()
+	case "cancelled":
+		return locales.StatusCancelled()
+	case "submitted":
+		return locales.StatusSubmitted()
+	case "executed":
+		return locales.StatusExecuted()
 	}
 	return s
 }

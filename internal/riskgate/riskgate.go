@@ -28,6 +28,7 @@ import (
 	"flintrade/internal/config"
 	"flintrade/internal/db"
 	"flintrade/internal/pyfloat"
+	"flintrade/internal/reasoncode"
 )
 
 // Intent is what the gate reads from an intent row.
@@ -61,8 +62,9 @@ func IsExit(side string) bool { return side == "flatten" || side == "close" }
 // Verdict is the gate's ruling.
 type Verdict struct {
 	Approved bool
-	Qty      int    // final order size after sizing and caps
-	Reason   string // rejection cause / approval summary
+	Qty      int             // final order size after sizing and caps
+	Reason   string          // rejection cause / approval summary
+	Code     reasoncode.Code // a rejection's cause, for Flintrade.app to say in its language
 	Notes    map[string]any
 }
 
@@ -155,8 +157,8 @@ func ConfidenceScale(cs config.ConfidenceScale, conf *int) float64 {
 	return cs.FloorScale + float64(float64((1.0-cs.FloorScale)*(c-cs.FloorAt))/(cs.FullAt-cs.FloorAt))
 }
 
-func reject(format string, a ...any) Verdict {
-	return Verdict{Reason: fmt.Sprintf(format, a...)}
+func reject(code reasoncode.Code, format string, a ...any) Verdict {
+	return Verdict{Reason: fmt.Sprintf(format, a...), Code: code}
 }
 
 // Evaluate rules on one intent.
@@ -166,7 +168,7 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 
 	// 1. HALT — exits always pass (the book must be reducible while halted).
 	if g.Halted && !isExit {
-		return reject("HALT: 全局熔断,仅允许平仓")
+		return reject(reasoncode.New("halted"), "HALT: 全局熔断,仅允许平仓")
 	}
 	if isExit {
 		// Exits skip sizing and caps, but there must be something to close.
@@ -178,7 +180,7 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 			}
 		}
 		if pos == nil {
-			return reject("无 %s 持仓可平", symbol)
+			return reject(reasoncode.New("noPositionToClose", "symbol", symbol), "无 %s 持仓可平", symbol)
 		}
 		qty := pos.Qty
 		// Partial close (scale-out): hypothesis_qty below the held qty.
@@ -190,7 +192,7 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 
 	r := g.Risk
 	if side == "short" && !r.Direction.AllowShort {
-		return reject("配置禁止做空")
+		return reject(reasoncode.New("shortingDisabled"), "配置禁止做空")
 	}
 
 	// Binding playbooks: an automated entry must carry the playbook's
@@ -199,10 +201,10 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 	if g.Strategies != nil {
 		if pb := g.Strategies.PlaybookFor(symbol); pb != nil && pb.Binding && in.Source != "user" {
 			if pb.LongOnly && side != "long" {
-				return reject("playbook[%s]: 仅允许多头入场", pb.Name)
+				return reject(reasoncode.New("playbookLongOnly", "playbook", pb.Name), "playbook[%s]: 仅允许多头入场", pb.Name)
 			}
 			if in.Features == nil || !truthy(in.Features["h4_confluence"]) {
-				return reject("playbook[%s]: 缺少 h4 共振确认(binding)", pb.Name)
+				return reject(reasoncode.New("playbookNeedsH4", "playbook", pb.Name), "playbook[%s]: 缺少 h4 共振确认(binding)", pb.Name)
 			}
 		}
 	}
@@ -220,7 +222,8 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 				elapsed := g.Now.Truncate(time.Microsecond).Sub(ts).Microseconds()
 				if elapsed < window {
 					mins := int(float64(window-elapsed) / 1e6 / 60)
-					return reject("no-revenge 冷却中(%s 还剩 ~%dmin)", symbol, mins)
+					return reject(reasoncode.New("revengeCooldown", "symbol", symbol, "minutes", strconv.Itoa(mins)),
+						"no-revenge 冷却中(%s 还剩 ~%dmin)", symbol, mins)
 				}
 			}
 		}
@@ -233,19 +236,21 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 	floor := r.PerTrade.VolumeRatioFloor
 	if g.VolumeRatio == nil {
 		if in.Source != "user" {
-			return reject("缺 volume_ratio(指标数据缺失),fail-closed 拒开仓")
+			return reject(reasoncode.New("missingVolumeRatio"), "缺 volume_ratio(指标数据缺失),fail-closed 拒开仓")
 		}
 	} else if *g.VolumeRatio < floor {
-		return reject("volume_ratio %.2f < %s", *g.VolumeRatio, PyRepr(floor))
+		return reject(reasoncode.New("volumeRatioLow", "ratio", fmt.Sprintf("%.2f", *g.VolumeRatio), "floor", PyRepr(floor)),
+			"volume_ratio %.2f < %s", *g.VolumeRatio, PyRepr(floor))
 	}
 
 	blackout := r.PerTrade.SessionCloseBlackoutMin
 	if m := g.MinutesToClose; m != nil && 0 <= *m && float64(*m) < blackout {
-		return reject("距收盘 %dmin < %smin 黑窗,不开新仓", *m, PyRepr(blackout))
+		return reject(reasoncode.New("closeBlackout", "minutesLeft", strconv.Itoa(*m), "blackout", PyRepr(blackout)),
+			"距收盘 %dmin < %smin 黑窗,不开新仓", *m, PyRepr(blackout))
 	}
 
 	if in.EntryHint == nil || *in.EntryHint == 0 || in.Stop == nil || *in.Stop == 0 || *in.EntryHint <= 0 {
-		return reject("缺 entry_hint/stop,无法风险定额")
+		return reject(reasoncode.New("missingEntryOrStop"), "缺 entry_hint/stop,无法风险定额")
 	}
 	entry, stop := *in.EntryHint, *in.Stop
 	stopDist := math.Abs(entry - stop)
@@ -253,14 +258,16 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 	// stopDist == 0 only when min_stop_distance_pct is 0; Python then divided
 	// by zero and crashed the executor iteration. Reject instead.
 	if stopDist < minDist || stopDist == 0 {
-		return reject("止损距离 %.4f 过近(<%.4f),无效止损", stopDist, minDist)
+		return reject(reasoncode.New("stopTooClose", "distance", fmt.Sprintf("%.4f", stopDist), "minimum", fmt.Sprintf("%.4f", minDist)),
+			"止损距离 %.4f 过近(<%.4f),无效止损", stopDist, minDist)
 	}
 
 	// 5. Risk sizing.
 	maxRiskAmt := float64(r.PerTrade.MaxRiskPct / 100.0 * g.Equity)
 	qty := pyInt(floorDiv(maxRiskAmt, stopDist))
 	if qty < 1 {
-		return reject("风险预算 $%.2f 不足 1 股(每股风险 $%.2f)", maxRiskAmt, stopDist)
+		return reject(reasoncode.New("budgetBelowOneShare", "budget", fmt.Sprintf("%.2f", maxRiskAmt), "perShare", fmt.Sprintf("%.2f", stopDist)),
+			"风险预算 $%.2f 不足 1 股(每股风险 $%.2f)", maxRiskAmt, stopDist)
 	}
 
 	// 6a. Concurrency: a new symbol takes a slot; in-flight entries do too.
@@ -273,7 +280,8 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 		held[x.symbol] = true
 	}
 	if !held[symbol] && len(held) >= port.MaxConcurrentPositions {
-		return reject("已达并发仓上限 %d", port.MaxConcurrentPositions)
+		return reject(reasoncode.New("maxPositions", "max", strconv.Itoa(port.MaxConcurrentPositions)),
+			"已达并发仓上限 %d", port.MaxConcurrentPositions)
 	}
 
 	type limit struct {
@@ -294,7 +302,7 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 		allowed := pyInt(floorDiv(c.remaining, entry))
 		if allowed < qty {
 			if allowed < 1 {
-				return reject("%s 限额已满,无可用敞口", c.label)
+				return reject(reasoncode.New("capFull", "cap", c.label), "%s 限额已满,无可用敞口", c.label)
 			}
 			qty = allowed // shrink to what the cap allows
 		}
@@ -306,7 +314,8 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 	if scale < 1.0 {
 		scaled := int(float64(float64(qty) * scale))
 		if scaled < 1 {
-			return reject("confidence %d 缩放(%.2f)后不足 1 股", *in.Confidence, scale)
+			return reject(reasoncode.New("confidenceBelowOneShare", "confidence", strconv.Itoa(*in.Confidence), "scale", fmt.Sprintf("%.2f", scale)),
+				"confidence %d 缩放(%.2f)后不足 1 股", *in.Confidence, scale)
 		}
 		qty = scaled
 	}
@@ -318,7 +327,7 @@ func (g *Gate) Evaluate(in Intent) Verdict {
 	if newRisk > room {
 		qty = pyInt(floorDiv(room, stopDist))
 		if qty < 1 {
-			return reject("组合总风险已达上限 %s%%", TomlNum(port.MaxOpenRiskPct))
+			return reject(reasoncode.New("openRiskCap", "pct", TomlNum(port.MaxOpenRiskPct)), "组合总风险已达上限 %s%%", TomlNum(port.MaxOpenRiskPct))
 		}
 	}
 

@@ -13,6 +13,8 @@ var columnMigrations = []struct{ table, column, ddl string }{
 	// Staged take-profit (2026-08-20).
 	{"positions", "target2", "ALTER TABLE positions ADD COLUMN target2 REAL"},
 	{"positions", "t1_done", "ALTER TABLE positions ADD COLUMN t1_done INTEGER NOT NULL DEFAULT 0"},
+	// Reasons Flintrade.app says in its own language (2026-11-11).
+	{"intents", "reject_code", "ALTER TABLE intents ADD COLUMN reject_code TEXT"},
 }
 
 // StrategyRecord is the one definition of Flintrade's own trading record — what

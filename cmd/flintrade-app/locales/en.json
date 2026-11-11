@@ -1,0 +1,1539 @@
+{
+  "@@locale": "en",
+  "navOverview": "Overview",
+  "@navOverview": {
+    "description": "Page tab: overview."
+  },
+  "navTrades": "Fills",
+  "@navTrades": {
+    "description": "Page tab: the list of fills."
+  },
+  "navIntents": "Intents",
+  "@navIntents": {
+    "description": "Page tab: the list of trade intents."
+  },
+  "navMemory": "Review",
+  "@navMemory": {
+    "description": "Page tab: lessons, plans and per-trade reviews."
+  },
+  "navStrategy": "Strategy",
+  "@navStrategy": {
+    "description": "Page tab: strategy and prompt files."
+  },
+  "navCreds": "Credentials",
+  "@navCreds": {
+    "description": "Page tab: Longbridge credentials."
+  },
+  "commonCancel": "Cancel",
+  "@commonCancel": {
+    "description": "Button: close a dialog without doing anything."
+  },
+  "commonRestart": "Restart",
+  "@commonRestart": {
+    "description": "Button in confirmation dialogs: restart the daemon."
+  },
+  "commonRestartDaemon": "Restart daemon",
+  "@commonRestartDaemon": {
+    "description": "Header button and tray menu item: restart the daemon."
+  },
+  "commonLocalTime": "Local time",
+  "@commonLocalTime": {
+    "description": "Table column header for timestamps shown in the Mac's time zone."
+  },
+  "commonSymbol": "Symbol",
+  "@commonSymbol": {
+    "description": "Table column header: ticker symbol."
+  },
+  "commonSource": "Source",
+  "@commonSource": {
+    "description": "Table column header: which loop produced the row."
+  },
+  "commonPnL": "P&L",
+  "@commonPnL": {
+    "description": "Table column header: profit and loss."
+  },
+  "commonConfidence": "Confidence",
+  "@commonConfidence": {
+    "description": "Table column header: the model's confidence."
+  },
+  "commonFill": "Fill",
+  "@commonFill": {
+    "description": "Label of the fill line in a detail pane."
+  },
+  "commonIntent": "Intent",
+  "@commonIntent": {
+    "description": "Label of the intent line in a detail pane."
+  },
+  "commonReason": "Reason",
+  "@commonReason": {
+    "description": "Label of the reason line in a detail pane."
+  },
+  "commonLesson": "Lesson",
+  "@commonLesson": {
+    "description": "Label of a trade review's lesson, and a column header."
+  },
+  "commonListSeparator": ", ",
+  "@commonListSeparator": {
+    "description": "Separator between items of a list inside a sentence."
+  },
+  "commonFillSeparator": "; ",
+  "@commonFillSeparator": {
+    "description": "Separator between the fills of one intent."
+  },
+  "commonFloat": "Unrealized P&L {value}",
+  "@commonFloat": {
+    "description": "Unrealized (floating) P&L of open positions, with its value.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDayTitle": "ET {date}",
+  "@commonDayTitle": {
+    "description": "Heading of a day group; the day is a trading day on the US Eastern calendar.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDaySpan": "Local {from} – {to}",
+  "@commonDaySpan": {
+    "description": "Next to a day heading: the same day as it falls on the Mac's local clock.",
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "agoSeconds": "{n, plural, one {# second ago} other {# seconds ago}}",
+  "@agoSeconds": {
+    "description": "Age of a data point, under a minute.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "agoMinutes": "{n, plural, one {# minute ago} other {# minutes ago}}",
+  "@agoMinutes": {
+    "description": "Age of a data point, under an hour.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "agoHours": "{hours} hours ago",
+  "@agoHours": {
+    "description": "Age of a data point, under two days; hours has one decimal.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
+  "agoDays": "{days} days ago",
+  "@agoDays": {
+    "description": "Age of a data point, two days or more; days has one decimal.",
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "everySeconds": "{n, plural, one {# second} other {# seconds}}",
+  "@everySeconds": {
+    "description": "A loop's cadence, under a minute.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "everyMinutes": "{n, plural, one {# minute} other {# minutes}}",
+  "@everyMinutes": {
+    "description": "A loop's cadence, under an hour.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "everyHours": "{hours} hours",
+  "@everyHours": {
+    "description": "A loop's cadence, an hour or more; hours has one decimal.",
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
+  "trayStopped": "Flintrade stopped",
+  "@trayStopped": {
+    "description": "Menu bar title when the daemon is not running."
+  },
+  "trayHalted": "Flintrade halted",
+  "@trayHalted": {
+    "description": "Menu bar title when new entries are paused."
+  },
+  "trayOpen": "Open Flintrade",
+  "@trayOpen": {
+    "description": "Tray menu item: open the window."
+  },
+  "trayLanguage": "Language",
+  "@trayLanguage": {
+    "description": "Tray menu item: submenu to choose the app language."
+  },
+  "trayLanguageSystem": "System",
+  "@trayLanguageSystem": {
+    "description": "Language submenu item: follow the system language."
+  },
+  "trayQuit": "Quit Flintrade.app (trading continues)",
+  "@trayQuit": {
+    "description": "Tray menu item: quit the app."
+  },
+  "trayDayPnL": "Today {pnl} ({pct})",
+  "@trayDayPnL": {
+    "description": "Tray menu line: today's P&L in dollars and as a percent of the equity at the day roll.",
+    "placeholders": {
+      "pnl": {
+        "type": "String"
+      },
+      "pct": {
+        "type": "String"
+      }
+    }
+  },
+  "trayDayRealized": "Today {pnl} ({pct}) · realized only",
+  "@trayDayRealized": {
+    "description": "Tray menu line: today's P&L when the floating part is unknown, so it counts realized P&L only.",
+    "placeholders": {
+      "pnl": {
+        "type": "String"
+      },
+      "pct": {
+        "type": "String"
+      }
+    }
+  },
+  "trayMenuBar": "Menu bar shows",
+  "@trayMenuBar": {
+    "description": "Tray submenu: what the menu bar title shows."
+  },
+  "trayShowStatus": "Status only",
+  "@trayShowStatus": {
+    "description": "Menu bar choice: the name, plus a word when something is wrong."
+  },
+  "trayShowPnL": "Today's P&L in dollars",
+  "@trayShowPnL": {
+    "description": "Menu bar choice: today's P&L in dollars."
+  },
+  "trayShowPct": "Today's P&L in percent",
+  "@trayShowPct": {
+    "description": "Menu bar choice: today's P&L as a percent."
+  },
+  "statusRepoMissing": "Flintrade repository not found",
+  "@statusRepoMissing": {
+    "description": "Status line and error screen: the Flintrade repository was not found."
+  },
+  "statusLoading": "Loading",
+  "@statusLoading": {
+    "description": "Status line and loading screen while the first snapshot loads."
+  },
+  "statusDaemonRunning": "daemon running",
+  "@statusDaemonRunning": {
+    "description": "Status of the daemon."
+  },
+  "statusDaemonStopped": "daemon stopped",
+  "@statusDaemonStopped": {
+    "description": "Status of the daemon."
+  },
+  "statusEntriesPaused": "New entries paused",
+  "@statusEntriesPaused": {
+    "description": "Status: risk control has paused new entries."
+  },
+  "statusLine": "{mode} · {daemon} · Net equity {equity}",
+  "@statusLine": {
+    "description": "Tray menu status line: mode, daemon state and net equity.",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      },
+      "daemon": {
+        "type": "String"
+      },
+      "equity": {
+        "type": "String"
+      }
+    }
+  },
+  "statusDayRollFallback": "Today's P&L follows the US Eastern date",
+  "@statusDayRollFallback": {
+    "description": "Tray menu note when the US Eastern time zone is unavailable."
+  },
+  "statusDayRoll": "Today's P&L follows the US Eastern date; the day rolls at {time} local time",
+  "@statusDayRoll": {
+    "description": "Tray menu note: when the day rolls over on the Mac's local clock.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "statusRestarting": "Restarting daemon",
+  "@statusRestarting": {
+    "description": "Notice under the header while the daemon restarts."
+  },
+  "statusRestartFailed": "Restart failed: {error}",
+  "@statusRestartFailed": {
+    "description": "Notice: the daemon restart failed.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "statusRestarted": "Daemon restarted ({time})",
+  "@statusRestarted": {
+    "description": "Notice: the daemon was restarted.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "viewRepoHint": "The app finds the repository from the WorkingDirectory of the launchd job com.flintrade.daemon, or from the FLINTRADE_DIR environment variable.",
+  "@viewRepoHint": {
+    "description": "Error screen: how the app finds the repository."
+  },
+  "viewRestartTitle": "Restart daemon?",
+  "@viewRestartTitle": {
+    "description": "Confirmation dialog title."
+  },
+  "viewRestartBody": "launchd stops the current process and starts it again at once. Pending orders and positions are in the ledger, and the new process keeps tracking them.",
+  "@viewRestartBody": {
+    "description": "Confirmation dialog body."
+  },
+  "headerRestarting": "Restarting",
+  "@headerRestarting": {
+    "description": "Header button label while the daemon restarts."
+  },
+  "headerLedgerError": "Ledger read incomplete: {error}",
+  "@headerLedgerError": {
+    "description": "Header warning: the ledger could not be read completely.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "headerCredProblem": "Credentials, {key}: {message}",
+  "@headerCredProblem": {
+    "description": "Header warning about a credentials problem: the variable name, then what is wrong (from the credentials check, in English).",
+    "placeholders": {
+      "key": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewRange1w": "1W",
+  "@overviewRange1w": {
+    "description": "Chart range pill."
+  },
+  "overviewRange1m": "1M",
+  "@overviewRange1m": {
+    "description": "Chart range pill."
+  },
+  "overviewRange3m": "3M",
+  "@overviewRange3m": {
+    "description": "Chart range pill."
+  },
+  "overviewRangeAll": "All",
+  "@overviewRangeAll": {
+    "description": "Chart range pill: the whole history."
+  },
+  "overviewCumulative": "Strategy realized P&L",
+  "@overviewCumulative": {
+    "description": "Section title and chart label: cumulative P&L of strategy closes."
+  },
+  "overviewChartEmpty": "Fewer than two closes in this range",
+  "@overviewChartEmpty": {
+    "description": "Chart placeholder when the range has fewer than two closes."
+  },
+  "overviewChartNote": "Cumulative P&L of strategy closes, trade by trade; the dashed line is the start of the range. It excludes unrealized P&L on open positions, opening commissions and fills attributed to test / outage, so the end point differs from net equity above.",
+  "@overviewChartNote": {
+    "description": "Footnote under the cumulative P&L chart."
+  },
+  "overviewNetEquity": "Net equity",
+  "@overviewNetEquity": {
+    "description": "Card title: net equity."
+  },
+  "overviewRealized": "Realized {value}",
+  "@overviewRealized": {
+    "description": "Card line: realized equity.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewRealizedFloat": "Realized {realized} · {float}",
+  "@overviewRealizedFloat": {
+    "description": "Card line: realized equity and the unrealized P&L label.",
+    "placeholders": {
+      "realized": {
+        "type": "String"
+      },
+      "float": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewToday": "Today",
+  "@overviewToday": {
+    "description": "Card title: today's P&L."
+  },
+  "overviewClosedToday": "{n, plural, one {# trade closed} other {# trades closed}} · {basis, select, float {incl. unrealized} other {realized only}}",
+  "@overviewClosedToday": {
+    "description": "Card line: closes today and whether unrealized P&L is included. basis is 'float' or 'realized'.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "basis": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewWinRate": "Win rate",
+  "@overviewWinRate": {
+    "description": "Card title: win rate."
+  },
+  "overviewStrategyCloses": "{n, plural, one {# strategy close} other {# strategy closes}}",
+  "@overviewStrategyCloses": {
+    "description": "Card line: number of strategy closes.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "overviewWinRateAll": "({rate}% overall)",
+  "@overviewWinRateAll": {
+    "description": "Card line: win rate over all closes.",
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewWinRateRecent": "Last 20: {rate}%",
+  "@overviewWinRateRecent": {
+    "description": "Card line: win rate over the last 20 closes.",
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewHealth": "Health",
+  "@overviewHealth": {
+    "description": "Section title: loop health."
+  },
+  "overviewHealthOk": "Trading chain is healthy: executor, reconciler and risk_monitor are all beating on schedule.",
+  "@overviewHealthOk": {
+    "description": "Health summary: all core loops beat."
+  },
+  "overviewHealthDown": "Trading chain is down: no heartbeat from {loops}.",
+  "@overviewHealthDown": {
+    "description": "Health summary: core loops have no heartbeat.",
+    "placeholders": {
+      "loops": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewHealthHalted": "Risk control has paused new entries: {reason}. Closes still run.",
+  "@overviewHealthHalted": {
+    "description": "Health summary: risk control paused new entries.",
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewLoopNever": "never",
+  "@overviewLoopNever": {
+    "description": "Last heartbeat of a loop that never beat."
+  },
+  "overviewLoopEvery": "every {interval}",
+  "@overviewLoopEvery": {
+    "description": "A loop's cadence, after its last heartbeat.",
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "overviewFeed": "Latest activity",
+  "@overviewFeed": {
+    "description": "Section title: latest activity."
+  },
+  "overviewFeedIntent": "Intent #{id} {side} {symbol} · {status}",
+  "@overviewFeedIntent": {
+    "description": "Activity line for an intent.",
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "side": {
+        "type": "String"
+      },
+      "symbol": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "positionTitle": "Positions",
+  "@positionTitle": {
+    "description": "Section title: open positions."
+  },
+  "positionNone": "No positions",
+  "@positionNone": {
+    "description": "Shown when there are no positions or orders."
+  },
+  "positionOrder": "Open order {side} {qty} · filled {filled}",
+  "@positionOrder": {
+    "description": "Left column: a working order.",
+    "placeholders": {
+      "side": {
+        "type": "String"
+      },
+      "qty": {
+        "type": "String"
+      },
+      "filled": {
+        "type": "String"
+      }
+    }
+  },
+  "positionRecords": "Record by symbol",
+  "@positionRecords": {
+    "description": "Section title: results by symbol."
+  },
+  "positionRecordSub": "{n, plural, one {# trade} other {# trades}} · win rate {rate}%",
+  "@positionRecordSub": {
+    "description": "Per-symbol line: closed trades and win rate.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "rate": {
+        "type": "String"
+      }
+    }
+  },
+  "positionAvg": "avg {value}",
+  "@positionAvg": {
+    "description": "Per-symbol average P&L per trade.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "positionFloatNoPrice": "Unrealized P&L — (no price)",
+  "@positionFloatNoPrice": {
+    "description": "Unrealized P&L when no position has a price."
+  },
+  "positionFloatPartial": "Unrealized P&L {value} (some prices missing)",
+  "@positionFloatPartial": {
+    "description": "Unrealized P&L when some positions have no price.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "positionAllStops": "If all stops hit {value}",
+  "@positionAllStops": {
+    "description": "Sum of the P&L if every stop is hit.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "positionAllStopsBare": "If all stops hit {value} (some positions have no stop)",
+  "@positionAllStopsBare": {
+    "description": "Same, when some position has no stop.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "positionHeld": "{side} {qty} sh @ {price}",
+  "@positionHeld": {
+    "description": "Position line: side, quantity and entry price. side is Long, Short or Close.",
+    "placeholders": {
+      "side": {
+        "type": "String"
+      },
+      "qty": {
+        "type": "String"
+      },
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "positionStop": "Stop {price}",
+  "@positionStop": {
+    "description": "Position line: stop price.",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "positionAtStop": "At stop {value}",
+  "@positionAtStop": {
+    "description": "Position line: P&L if the stop is hit.",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "positionNoPrice": "No price",
+  "@positionNoPrice": {
+    "description": "Position line: the risk monitor has no price."
+  },
+  "tradesTitle": "Fills",
+  "@tradesTitle": {
+    "description": "Page title: fills."
+  },
+  "tradesHint": "Latest {n, plural, one {# fill} other {# fills}}, newest first, grouped by US Eastern trading day",
+  "@tradesHint": {
+    "description": "Subtitle of the fills page.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "tradesColAction": "Action",
+  "@tradesColAction": {
+    "description": "Table column header: what the fill does."
+  },
+  "tradesColQty": "Qty",
+  "@tradesColQty": {
+    "description": "Table column header: quantity."
+  },
+  "tradesColPrice": "Fill price",
+  "@tradesColPrice": {
+    "description": "Table column header: fill price."
+  },
+  "tradesNoCloses": "No closes",
+  "@tradesNoCloses": {
+    "description": "Day header: no closes that day."
+  },
+  "tradesDaySummary": "{closed, plural, one {# close} other {# closes}} · {wins} won, {losses} lost · {pnl}",
+  "@tradesDaySummary": {
+    "description": "Day header: closes, wins, losses and P&L.",
+    "placeholders": {
+      "closed": {
+        "type": "int"
+      },
+      "wins": {
+        "type": "int"
+      },
+      "losses": {
+        "type": "int"
+      },
+      "pnl": {
+        "type": "String"
+      }
+    }
+  },
+  "tradesActionBuy": "Open long",
+  "@tradesActionBuy": {
+    "description": "Fill action: BUY opens a long position."
+  },
+  "tradesActionSell": "Close long",
+  "@tradesActionSell": {
+    "description": "Fill action: SELL closes a long position."
+  },
+  "tradesActionShort": "Open short",
+  "@tradesActionShort": {
+    "description": "Fill action: SHORT opens a short position."
+  },
+  "tradesActionCover": "Close short",
+  "@tradesActionCover": {
+    "description": "Fill action: COVER closes a short position."
+  },
+  "tradesHeld": "Still held",
+  "@tradesHeld": {
+    "description": "Pnl cell of an opening fill whose position is still open."
+  },
+  "tradesSelectHint": "Select a fill to see why it was made",
+  "@tradesSelectHint": {
+    "description": "Detail pane when no fill is selected."
+  },
+  "tradesDetailFill": "#{id}  {action} {qty} {symbol} @ {price}  Commission {commission}",
+  "@tradesDetailFill": {
+    "description": "Detail pane: the fill.",
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "action": {
+        "type": "String"
+      },
+      "qty": {
+        "type": "String"
+      },
+      "symbol": {
+        "type": "String"
+      },
+      "price": {
+        "type": "String"
+      },
+      "commission": {
+        "type": "String"
+      }
+    }
+  },
+  "tradesBrokerOrder": "Broker order ID",
+  "@tradesBrokerOrder": {
+    "description": "Detail pane label: the broker's order id."
+  },
+  "sourceTechnical": "Technical",
+  "@sourceTechnical": {
+    "description": "Source of a fill or intent."
+  },
+  "sourceEvent": "Event",
+  "@sourceEvent": {
+    "description": "Source of a fill or intent."
+  },
+  "sourceUser": "Manual",
+  "@sourceUser": {
+    "description": "Source of a fill or intent: entered by hand."
+  },
+  "sourceRiskMonitor": "Risk monitor",
+  "@sourceRiskMonitor": {
+    "description": "Source of a fill or intent."
+  },
+  "attributionLegacy": "Legacy",
+  "@attributionLegacy": {
+    "description": "Tag on a fill that is not the strategy's own record."
+  },
+  "attributionTest": "Test",
+  "@attributionTest": {
+    "description": "Tag on a fill that is not the strategy's own record."
+  },
+  "attributionManual": "Manual",
+  "@attributionManual": {
+    "description": "Tag on a fill that is not the strategy's own record."
+  },
+  "attributionOutage": "Outage fallback",
+  "@attributionOutage": {
+    "description": "Tag on a fill made while the model was unavailable."
+  },
+  "intentsTitle": "Intents",
+  "@intentsTitle": {
+    "description": "Page title: intents."
+  },
+  "intentsHint": "Trade requests proposed by a model or by risk control. An order is placed only if the request passes the risk gate. Grouped by US Eastern trading day.",
+  "@intentsHint": {
+    "description": "Subtitle of the intents page."
+  },
+  "intentsColSide": "Side",
+  "@intentsColSide": {
+    "description": "Table column header: intent direction."
+  },
+  "intentsColStatus": "Status",
+  "@intentsColStatus": {
+    "description": "Table column header: intent status."
+  },
+  "intentsColReason": "Reason / why not filled",
+  "@intentsColReason": {
+    "description": "Table column header: reason, or why not filled."
+  },
+  "intentsDayCount": "{n, plural, one {# intent} other {# intents}}",
+  "@intentsDayCount": {
+    "description": "Day header: number of intents.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "intentsSelectHint": "Select an intent to see the full reason and why it was not filled",
+  "@intentsSelectHint": {
+    "description": "Detail pane when no intent is selected."
+  },
+  "intentsHead": "#{id}  {source} {side} {symbol} · {status}",
+  "@intentsHead": {
+    "description": "Detail pane: intent summary.",
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "source": {
+        "type": "String"
+      },
+      "side": {
+        "type": "String"
+      },
+      "symbol": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "intentsHeadConfidence": "#{id}  {source} {side} {symbol} · {status} · Confidence {confidence}",
+  "@intentsHeadConfidence": {
+    "description": "Detail pane: intent summary with confidence.",
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "source": {
+        "type": "String"
+      },
+      "side": {
+        "type": "String"
+      },
+      "symbol": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      },
+      "confidence": {
+        "type": "String"
+      }
+    }
+  },
+  "intentsNotFilled": "Why not filled",
+  "@intentsNotFilled": {
+    "description": "Detail pane label: why the intent was not filled."
+  },
+  "intentsNote": "Note",
+  "@intentsNote": {
+    "description": "Detail pane label: a note from the gate."
+  },
+  "intentSideLong": "Long",
+  "@intentSideLong": {
+    "description": "Intent direction."
+  },
+  "intentSideShort": "Short",
+  "@intentSideShort": {
+    "description": "Intent direction."
+  },
+  "intentSideClose": "Close",
+  "@intentSideClose": {
+    "description": "Intent direction: close one position."
+  },
+  "intentSideFlatten": "Close all",
+  "@intentSideFlatten": {
+    "description": "Intent direction: close every position."
+  },
+  "sideLong": "Long",
+  "@sideLong": {
+    "description": "Position side."
+  },
+  "sideShort": "Short",
+  "@sideShort": {
+    "description": "Position side."
+  },
+  "sideClose": "Close",
+  "@sideClose": {
+    "description": "Position side of a closing order."
+  },
+  "statusPending": "Pending",
+  "@statusPending": {
+    "description": "Intent or order status."
+  },
+  "statusApproved": "Approved",
+  "@statusApproved": {
+    "description": "Intent or order status."
+  },
+  "statusRejected": "Rejected",
+  "@statusRejected": {
+    "description": "Intent or order status."
+  },
+  "statusFilled": "Filled",
+  "@statusFilled": {
+    "description": "Intent or order status."
+  },
+  "statusFailed": "Failed",
+  "@statusFailed": {
+    "description": "Intent or order status."
+  },
+  "statusExpired": "Expired",
+  "@statusExpired": {
+    "description": "Intent or order status."
+  },
+  "statusCancelled": "Cancelled",
+  "@statusCancelled": {
+    "description": "Intent or order status."
+  },
+  "statusSubmitted": "Submitted",
+  "@statusSubmitted": {
+    "description": "Intent or order status."
+  },
+  "statusExecuted": "Executed",
+  "@statusExecuted": {
+    "description": "Intent or order status."
+  },
+  "memoryTitle": "Review",
+  "@memoryTitle": {
+    "description": "Page title: review."
+  },
+  "memoryTabLessons": "Lessons and plans",
+  "@memoryTabLessons": {
+    "description": "Segmented control tab."
+  },
+  "memoryTabReviews": "Trade reviews",
+  "@memoryTabReviews": {
+    "description": "Segmented control tab."
+  },
+  "memoryStatCloses": "Strategy closes",
+  "@memoryStatCloses": {
+    "description": "Stat card title."
+  },
+  "memoryStatClosesValue": "{n, plural, one {# trade} other {# trades}}",
+  "@memoryStatClosesValue": {
+    "description": "Stat card value: number of closes.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "memorySinceTrade": "Since last fill: {gap}",
+  "@memorySinceTrade": {
+    "description": "Stat card note: time since the last fill.",
+    "placeholders": {
+      "gap": {
+        "type": "String"
+      }
+    }
+  },
+  "memoryStatWinRate": "Win rate",
+  "@memoryStatWinRate": {
+    "description": "Stat card title."
+  },
+  "memorySinceDream": "Since last dream: {gap}",
+  "@memorySinceDream": {
+    "description": "Stat card note: time since the last dreaming run.",
+    "placeholders": {
+      "gap": {
+        "type": "String"
+      }
+    }
+  },
+  "memoryStatNet": "Net P&L",
+  "@memoryStatNet": {
+    "description": "Stat card title."
+  },
+  "memoryStatNetFoot": "Cumulative, strategy closes only",
+  "@memoryStatNetFoot": {
+    "description": "Stat card note."
+  },
+  "memoryGapMinutes": "{n} minutes",
+  "@memoryGapMinutes": {
+    "description": "A time gap in minutes.",
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "memoryGapHours": "{n} hours",
+  "@memoryGapHours": {
+    "description": "A time gap in hours.",
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "memoryGapDays": "{n} days",
+  "@memoryGapDays": {
+    "description": "A time gap in days.",
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
+  "memoryGapNow": "just now",
+  "@memoryGapNow": {
+    "description": "A time gap of about a minute."
+  },
+  "memoryGapNever": "never",
+  "@memoryGapNever": {
+    "description": "No such event yet."
+  },
+  "memoryGapFuture": "in the future",
+  "@memoryGapFuture": {
+    "description": "A timestamp ahead of the clock."
+  },
+  "memoryLessons": "Lessons",
+  "@memoryLessons": {
+    "description": "Section title."
+  },
+  "memoryLessonsCount": "{n, plural, one {# lesson} other {# lessons}} · confidence and supporting sample count on the left",
+  "@memoryLessonsCount": {
+    "description": "Section subtitle: lesson count.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "memoryLessonsEmpty": "No lessons yet",
+  "@memoryLessonsEmpty": {
+    "description": "Shown when there are no lessons."
+  },
+  "memoryPlans": "Plans",
+  "@memoryPlans": {
+    "description": "Section title."
+  },
+  "memoryPlansCount": "{n, plural, one {# plan} other {# plans}}",
+  "@memoryPlansCount": {
+    "description": "Section subtitle: plan count.",
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "memoryPlanExpires": "Expires {date}",
+  "@memoryPlanExpires": {
+    "description": "A plan's expiry.",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "memoryExitKinds": "Exit types",
+  "@memoryExitKinds": {
+    "description": "Section title: how trades were exited."
+  },
+  "reviewsColTime": "Time",
+  "@reviewsColTime": {
+    "description": "Table column header."
+  },
+  "reviewsColHeld": "Held (min)",
+  "@reviewsColHeld": {
+    "description": "Table column header: minutes held."
+  },
+  "reviewsColExit": "Exit",
+  "@reviewsColExit": {
+    "description": "Table column header: exit type."
+  },
+  "reviewsColVerdict": "Verdict",
+  "@reviewsColVerdict": {
+    "description": "Table column header."
+  },
+  "reviewsColGrades": "Entry / exit grade",
+  "@reviewsColGrades": {
+    "description": "Table column header: entry and exit grades."
+  },
+  "reviewsSelectHint": "Select a review to see the thesis and lesson",
+  "@reviewsSelectHint": {
+    "description": "Detail pane when no review is selected."
+  },
+  "reviewsFill": "#{id} {symbol}  Confidence {confidence}",
+  "@reviewsFill": {
+    "description": "Detail pane: the reviewed fill.",
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "symbol": {
+        "type": "String"
+      },
+      "confidence": {
+        "type": "String"
+      }
+    }
+  },
+  "reviewsThesis": "Thesis",
+  "@reviewsThesis": {
+    "description": "Detail pane label."
+  },
+  "strategyTitle": "Strategy",
+  "@strategyTitle": {
+    "description": "Page title."
+  },
+  "strategyDiscard": "Discard changes",
+  "@strategyDiscard": {
+    "description": "Button: drop unsaved edits."
+  },
+  "strategyCheckSave": "Check and save",
+  "@strategyCheckSave": {
+    "description": "Button: validate and save."
+  },
+  "strategyNoFiles": "No editable files",
+  "@strategyNoFiles": {
+    "description": "Shown when no file can be edited."
+  },
+  "strategyNoteGated": "Risk number changes must pass a backtest first (CLAUDE.md). Until the Go backtest exists, this file is read-only here.",
+  "@strategyNoteGated": {
+    "description": "Note for a read-only file."
+  },
+  "strategyNoteToml": "Before saving, the file is parsed by the daemon's strict rules: unknown fields and type errors are rejected. Changes take effect after the daemon restarts.",
+  "@strategyNoteToml": {
+    "description": "Note for a TOML file."
+  },
+  "strategyNotePrompt": "The producer's system prompt: editing it changes trading judgement. Run a backtest before going live. Changes take effect after the daemon restarts.",
+  "@strategyNotePrompt": {
+    "description": "Note for a prompt file."
+  },
+  "strategySaveTitle": "Save {name}",
+  "@strategySaveTitle": {
+    "description": "Save dialog title.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "strategySaveOnly": "Save only",
+  "@strategySaveOnly": {
+    "description": "Save dialog button."
+  },
+  "strategySaveRestart": "Save and restart daemon",
+  "@strategySaveRestart": {
+    "description": "Save dialog button."
+  },
+  "strategySaved": "Saved {path}",
+  "@strategySaved": {
+    "description": "Notice after saving and restarting.",
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "strategySavedLater": "Saved {path}; takes effect after the daemon restarts",
+  "@strategySavedLater": {
+    "description": "Notice after saving without restart.",
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "credsTitle": "Credentials",
+  "@credsTitle": {
+    "description": "Page title."
+  },
+  "credsCurrent": "In use",
+  "@credsCurrent": {
+    "description": "Card heading: the credentials in use."
+  },
+  "credsFile": "File",
+  "@credsFile": {
+    "description": "Field label: credentials file path."
+  },
+  "credsPerms": "Permissions",
+  "@credsPerms": {
+    "description": "Field label: file permissions problem."
+  },
+  "credsMode": "Mode",
+  "@credsMode": {
+    "description": "Field label: trading mode."
+  },
+  "credsModeDry": "DRY RUN: simulated fills, no orders placed",
+  "@credsModeDry": {
+    "description": "Mode description."
+  },
+  "credsModeLive": "LIVE: real orders in the paper account",
+  "@credsModeLive": {
+    "description": "Mode description."
+  },
+  "credsModeNote": "{mode} (set by FLINTRADE_DRY_RUN in the file; the app has no switch)",
+  "@credsModeNote": {
+    "description": "Mode line with where the mode comes from.",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "credsAccount": "Account",
+  "@credsAccount": {
+    "description": "Field label: account."
+  },
+  "credsAccountLine": "{channel} · {region}",
+  "@credsAccountLine": {
+    "description": "Account value.",
+    "placeholders": {
+      "channel": {
+        "type": "String"
+      },
+      "region": {
+        "type": "String"
+      }
+    }
+  },
+  "credsAccountLinePaper": "{channel} (paper) · {region}",
+  "@credsAccountLinePaper": {
+    "description": "Account value for a paper account.",
+    "placeholders": {
+      "channel": {
+        "type": "String"
+      },
+      "region": {
+        "type": "String"
+      }
+    }
+  },
+  "credsTokenDates": "Issued {issued}, expires {expires}, {days, plural, one {# day} other {# days}} left",
+  "@credsTokenDates": {
+    "description": "Token line: issue date, expiry date and days left.",
+    "placeholders": {
+      "issued": {
+        "type": "String"
+      },
+      "expires": {
+        "type": "String"
+      },
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "credsNotSet": "(not set)",
+  "@credsNotSet": {
+    "description": "Masked value of a credential that is not set; dash.Mask says this in Chinese only."
+  },
+  "credsReplace": "Replace",
+  "@credsReplace": {
+    "description": "Card heading: replace credentials."
+  },
+  "credsReplaceHint": "Generate a new Access Token in the developer center at open.longbridge.com (the App Key and App Secret rarely change). Fill in only what you want to replace; empty fields keep their current value.",
+  "@credsReplaceHint": {
+    "description": "Card text under the replace heading."
+  },
+  "credsKeepPlaceholder": "Leave empty to keep",
+  "@credsKeepPlaceholder": {
+    "description": "Placeholder of an empty credential input."
+  },
+  "credsVerifySave": "Verify and save",
+  "@credsVerifySave": {
+    "description": "Button: verify and save the credentials."
+  },
+  "credsVerifying": "Verifying",
+  "@credsVerifying": {
+    "description": "Button label while verifying."
+  },
+  "credsVerifyNote": "Checks the token offline, then makes one read-only longbridge assets call with the new credentials. The file is written only if both pass (atomic write, 0600).",
+  "@credsVerifyNote": {
+    "description": "Note under the save button."
+  },
+  "credsWritten": "Written to {path}",
+  "@credsWritten": {
+    "description": "Notice after saving.",
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "credsSavedTitle": "Credentials saved",
+  "@credsSavedTitle": {
+    "description": "Dialog title after saving."
+  },
+  "credsSavedBody": "The daemon reads the credentials file only at startup. Restart it now to use the new credentials?",
+  "@credsSavedBody": {
+    "description": "Dialog body after saving."
+  },
+  "credsLater": "Later",
+  "@credsLater": {
+    "description": "Dialog button: not now."
+  },
+  "reasonHalted": "Halted: only closing orders are allowed",
+  "@reasonHalted": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key halted)."
+  },
+  "reasonNoPositionToClose": "No {symbol} position to close",
+  "@reasonNoPositionToClose": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key noPositionToClose).",
+    "placeholders": {
+      "symbol": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonShortingDisabled": "Short selling is turned off in the config",
+  "@reasonShortingDisabled": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key shortingDisabled)."
+  },
+  "reasonPlaybookLongOnly": "Playbook {playbook} allows long entries only",
+  "@reasonPlaybookLongOnly": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key playbookLongOnly).",
+    "placeholders": {
+      "playbook": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonPlaybookNeedsH4": "Playbook {playbook} needs 4-hour trend confirmation, which is missing",
+  "@reasonPlaybookNeedsH4": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key playbookNeedsH4).",
+    "placeholders": {
+      "playbook": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonRevengeCooldown": "Cooling down after a loss on {symbol} (~{minutes} min left)",
+  "@reasonRevengeCooldown": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key revengeCooldown).",
+    "placeholders": {
+      "symbol": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonMissingVolumeRatio": "No volume ratio (indicator data missing), entry refused",
+  "@reasonMissingVolumeRatio": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key missingVolumeRatio)."
+  },
+  "reasonVolumeRatioLow": "Volume ratio {ratio} is below the floor of {floor}",
+  "@reasonVolumeRatioLow": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key volumeRatioLow).",
+    "placeholders": {
+      "ratio": {
+        "type": "String"
+      },
+      "floor": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonCloseBlackout": "{minutesLeft} min to the close, inside the {blackout} min no-entry window",
+  "@reasonCloseBlackout": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key closeBlackout).",
+    "placeholders": {
+      "minutesLeft": {
+        "type": "String"
+      },
+      "blackout": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonMissingEntryOrStop": "No entry price or stop, so the order cannot be sized",
+  "@reasonMissingEntryOrStop": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key missingEntryOrStop)."
+  },
+  "reasonStopTooClose": "Stop is {distance} away, closer than the minimum of {minimum}",
+  "@reasonStopTooClose": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key stopTooClose).",
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      },
+      "minimum": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonBudgetBelowOneShare": "Risk budget ${budget} is less than the risk of one share (${perShare})",
+  "@reasonBudgetBelowOneShare": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key budgetBelowOneShare).",
+    "placeholders": {
+      "budget": {
+        "type": "String"
+      },
+      "perShare": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonMaxPositions": "Already at the limit of {max} open positions",
+  "@reasonMaxPositions": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key maxPositions).",
+    "placeholders": {
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonCapFull": "No room left under the {cap} exposure limit",
+  "@reasonCapFull": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key capFull).",
+    "placeholders": {
+      "cap": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonConfidenceBelowOneShare": "Less than one share after scaling for confidence {confidence} (×{scale})",
+  "@reasonConfidenceBelowOneShare": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key confidenceBelowOneShare).",
+    "placeholders": {
+      "confidence": {
+        "type": "String"
+      },
+      "scale": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonOpenRiskCap": "Total open risk is at its limit of {pct}%",
+  "@reasonOpenRiskCap": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key openRiskCap).",
+    "placeholders": {
+      "pct": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonFlipNeedsClose": "Holding {symbol} {side}: close it before taking the other side",
+  "@reasonFlipNeedsClose": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key flipNeedsClose).",
+    "placeholders": {
+      "side": {
+        "type": "String"
+      },
+      "symbol": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonEntryInFlight": "An entry order for this symbol is still working",
+  "@reasonEntryInFlight": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key entryInFlight)."
+  },
+  "reasonCancelledForClose": "Cancelled to make way for a new close order",
+  "@reasonCancelledForClose": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key cancelledForClose)."
+  },
+  "reasonTtlExpired": "Entry order unfilled after {age} min (limit {ttl} min), cancelled",
+  "@reasonTtlExpired": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key ttlExpired).",
+    "placeholders": {
+      "age": {
+        "type": "String"
+      },
+      "ttl": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonCloseAlreadyFilled": "A close order already working has filled, so this one is void",
+  "@reasonCloseAlreadyFilled": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key closeAlreadyFilled)."
+  },
+  "reasonBrokerRejected": "Broker rejected the order ({status}, {orth}, {session}): {raw}",
+  "@reasonBrokerRejected": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key brokerRejected).",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "orth": {
+        "type": "String"
+      },
+      "session": {
+        "type": "String"
+      },
+      "raw": {
+        "type": "String"
+      }
+    }
+  },
+  "reasonOrderNoFill": "Order {status} without a fill",
+  "@reasonOrderNoFill": {
+    "description": "Why an intent ended without a fill, as the daemon coded it (internal/reasoncode key orderNoFill).",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "alertDownTitle": "Flintrade daemon stopped",
+  "@alertDownTitle": {
+    "description": "Notification: the core loops stopped beating."
+  },
+  "alertDownBody": "No heartbeat: {loops}",
+  "@alertDownBody": {
+    "description": "Notification body: the loops without a heartbeat, joined by commonListSeparator.",
+    "placeholders": {
+      "loops": {
+        "type": "String"
+      }
+    }
+  },
+  "alertUpTitle": "Flintrade daemon recovered",
+  "@alertUpTitle": {
+    "description": "Notification: the core loops beat again."
+  },
+  "alertUpBody": "Core loops are beating normally",
+  "@alertUpBody": {
+    "description": "Notification body after recovery."
+  },
+  "alertHaltTitle": "Flintrade paused new entries",
+  "@alertHaltTitle": {
+    "description": "Notification: risk control halted new entries."
+  },
+  "alertHaltNoReason": "No reason recorded",
+  "@alertHaltNoReason": {
+    "description": "Notification body when the halt has no recorded reason."
+  },
+  "alertTokenTitle": "Longbridge credentials need attention",
+  "@alertTokenTitle": {
+    "description": "Notification: a credentials problem; the body is the problem itself."
+  },
+  "errGated": "Changes to risk.toml must pass a backtest first; it is read-only until the Go backtest exists",
+  "@errGated": {
+    "description": "Strategy page: saving risk.toml is refused."
+  },
+  "errEmpty": "The content is empty",
+  "@errEmpty": {
+    "description": "Strategy page: saving an empty file is refused."
+  },
+  "errNoChanges": "Nothing changed",
+  "@errNoChanges": {
+    "description": "Credentials page: save with every field empty."
+  },
+  "errCredsRejected": "Longbridge rejected these credentials: {error} {output}",
+  "@errCredsRejected": {
+    "description": "Credentials page: the verification call failed; output is its stderr with secrets masked.",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      },
+      "output": {
+        "type": "String"
+      }
+    }
+  }
+}

@@ -56,7 +56,7 @@ func TestInitIdempotent(t *testing.T) {
 	}
 }
 
-// A database created before the attribution / target2 / t1_done columns
+// A database created before the attribution / target2 / t1_done / reject_code columns
 // existed must be patched in place.
 func TestInitMigratesOldColumns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "old.db")
@@ -68,6 +68,7 @@ func TestInitMigratesOldColumns(t *testing.T) {
 		"    target2     REAL,                          -- 第二止盈位(触发清剩余仓)\n", "",
 		"    t1_done     INTEGER NOT NULL DEFAULT 0,    -- 第一止盈已兑现(任何部分平仓都置 1)\n", "",
 		",\n    attribution     TEXT                        -- strategy | manual | test | outage-degraded(见 settle.py)\n", "\n",
+		"    reject_code   TEXT,                         -- JSON {key,args}:reject_reason 的多语言形式(internal/reasoncode)\n", "",
 	).Replace(schemaSQL)
 	if old == schemaSQL {
 		t.Fatal("test fixture did not strip the migrated columns")

@@ -13,13 +13,13 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"flintrade/internal/broker"
 	"flintrade/internal/config"
 	"flintrade/internal/creds"
 	"flintrade/internal/db"
+	"flintrade/internal/marks"
 	"flintrade/internal/paths"
 	"flintrade/internal/postmortem"
 	"flintrade/internal/reflect"
@@ -98,6 +98,7 @@ type Intent struct {
 	Confidence   *int
 	Reason       string
 	RejectReason string
+	RejectCode   string // reasoncode JSON; "" before the daemon wrote codes
 }
 
 // Review is a postmortem of one closed trade.
@@ -140,12 +141,15 @@ type Snapshot struct {
 	InceptionEquity float64
 	Curve           []Point
 	Positions       []db.Position
-	Orders          []db.Order // working orders
-	Trades          []db.Trade // newest first
-	Intents         []Intent   // newest first
-	Symbols         []SymbolRecord // most recently traded first
-	DaySeries       []float64      // cumulative realized PnL of today's (ET) closes
-	WinRateSeries   []float64      // win rate over the trailing 20 closes, after each close
+	Marks           map[string]marks.Mark // last price per open position; see internal/marks
+	RiskDay         string                // ET date day_start_equity belongs to (kv risk_day)
+	DayStartFloat   *marks.DayStart       // floating P&L carried into RiskDay, when recorded
+	Orders          []db.Order            // working orders
+	Trades          []db.Trade            // newest first
+	Intents         []Intent              // newest first
+	Symbols         []SymbolRecord        // most recently traded first
+	DaySeries       []float64             // cumulative realized PnL of today's (ET) closes
+	WinRateSeries   []float64             // win rate over the trailing 20 closes, after each close
 	Recall          *reflect.Recall
 	Reviews         []Review
 	ReviewStats     *postmortem.StatsResult
@@ -180,21 +184,51 @@ func (s *Snapshot) StaleLoops() []string {
 // Halted reports the risk monitor's halt flag.
 func (s *Snapshot) Halted() bool { return s.Risk != nil && s.Risk.Halt }
 
-// DayPnL is equity minus the day's starting equity.
-func (s *Snapshot) DayPnL() *float64 {
-	if s.Risk == nil || s.Risk.Equity == nil || s.Risk.DayStartEquity == nil {
+// Float is the floating P&L of the open positions at their last marks.
+func (s *Snapshot) Float() marks.Float { return marks.Total(s.Positions, s.Marks) }
+
+// NetEquity is realized equity plus floating P&L. risk_state.equity is
+// realized only in fixed-sleeve mode: it moves on fills, not on prices.
+func (s *Snapshot) NetEquity() *float64 {
+	if s.Risk == nil || s.Risk.Equity == nil {
 		return nil
 	}
-	v := *s.Risk.Equity - *s.Risk.DayStartEquity
+	v := *s.Risk.Equity + s.Float().Sum
 	return &v
 }
 
-// Return is equity minus the inception sleeve.
-func (s *Snapshot) Return() *float64 {
-	if s.Risk == nil || s.Risk.Equity == nil || s.InceptionEquity == 0 {
+// Day is today's (ET) P&L and the equity it is measured against.
+type Day struct {
+	PnL  float64
+	Base float64
+	// WithFloat: the figure includes the change in floating P&L. False means
+	// realized only — a position lacks a price now, or the floating P&L at
+	// the day roll was not recorded.
+	WithFloat bool
+}
+
+// Day: net equity now minus net equity at the day roll. Falls back to
+// realized equity minus day_start_equity when the floating part is unknown.
+func (s *Snapshot) Day() *Day {
+	if s.Risk == nil || s.Risk.Equity == nil || s.Risk.DayStartEquity == nil {
 		return nil
 	}
-	v := *s.Risk.Equity - s.InceptionEquity
+	eq, start := *s.Risk.Equity, *s.Risk.DayStartEquity
+	f, ds := s.Float(), s.DayStartFloat
+	if f.Complete && ds != nil && ds.Complete && ds.Day == s.RiskDay {
+		base := start + ds.Sum
+		return &Day{PnL: eq + f.Sum - base, Base: base, WithFloat: true}
+	}
+	return &Day{PnL: eq - start, Base: start}
+}
+
+// Return is net equity minus the inception sleeve.
+func (s *Snapshot) Return() *float64 {
+	n := s.NetEquity()
+	if n == nil || s.InceptionEquity == 0 {
+		return nil
+	}
+	v := *n - s.InceptionEquity
 	return &v
 }
 
@@ -248,6 +282,18 @@ func Load(ctx context.Context, root string, now time.Time) *Snapshot {
 	keep(err)
 	s.Positions, err = r.OpenPositions(ctx)
 	keep(err)
+	syms := make([]string, len(s.Positions))
+	for i, p := range s.Positions {
+		syms[i] = p.Symbol
+	}
+	s.Marks, err = marks.Get(ctx, r, syms)
+	keep(err)
+	s.RiskDay, _, _ = r.KVGet(ctx, "risk_day")
+	if ds, ok, err := marks.GetDayStart(ctx, r); ok {
+		s.DayStartFloat = &ds
+	} else {
+		keep(err)
+	}
 	s.Orders, err = r.OpenOrders(ctx)
 	keep(err)
 	s.Trades, err = r.RecentTrades(ctx, 300)
@@ -409,8 +455,15 @@ func records(ctx context.Context, r *db.Store, now time.Time) ([]SymbolRecord, [
 }
 
 func intents(ctx context.Context, r *db.Store, limit int) ([]Intent, error) {
+	// reject_code arrives with the daemon's next start (column migration);
+	// the app reads the ledger as it is until then.
+	code := "''"
+	var has int
+	if err := r.QueryRow(ctx, `SELECT count(*) FROM pragma_table_info('intents') WHERE name='reject_code'`).Scan(&has); err == nil && has > 0 {
+		code = "COALESCE(reject_code,'')"
+	}
 	rows, err := r.Query(ctx, `SELECT id, created_at, source, symbol, side, status, confidence,
-		COALESCE(reason,''), COALESCE(reject_reason,'') FROM intents ORDER BY id DESC LIMIT ?`, limit)
+		COALESCE(reason,''), COALESCE(reject_reason,''), `+code+` FROM intents ORDER BY id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +472,7 @@ func intents(ctx context.Context, r *db.Store, limit int) ([]Intent, error) {
 	for rows.Next() {
 		var in Intent
 		if err := rows.Scan(&in.ID, &in.CreatedAt, &in.Source, &in.Symbol, &in.Side, &in.Status,
-			&in.Confidence, &in.Reason, &in.RejectReason); err != nil {
+			&in.Confidence, &in.Reason, &in.RejectReason, &in.RejectCode); err != nil {
 			return out, err
 		}
 		out = append(out, in)
@@ -448,11 +501,13 @@ func reviews(ctx context.Context, r *db.Store, limit int) ([]Review, error) {
 	return out, rows.Err()
 }
 
-// Alert is one notification the app raises on a state change.
+// Alert is one notification the app raises on a state change. The app
+// writes its title and body in its own language from these fields.
 type Alert struct {
-	Key   string // dedup key: down | up | halt | token
-	Title string
-	Body  string
+	Key     string   // dedup key and kind: down | up | halt | token
+	Loops   []string // down: the core loops without a heartbeat
+	Reason  string   // halt: risk_state.halt_reason, "" when none was recorded
+	Message string   // token: the first credentials problem
 }
 
 // Alerts compares two snapshots and returns what changed for the worse (or
@@ -465,22 +520,25 @@ func Alerts(prev, cur *Snapshot) []Alert {
 	var out []Alert
 	wasDown := prev != nil && prev.DaemonDown()
 	if cur.DaemonDown() && !wasDown {
-		out = append(out, Alert{"down", "Flintrade daemon 停了", "无心跳:" + strings.Join(cur.StaleLoops(), "、")})
+		out = append(out, Alert{Key: "down", Loops: cur.StaleLoops()})
 	}
 	if !cur.DaemonDown() && wasDown {
-		out = append(out, Alert{"up", "Flintrade daemon 恢复", "核心 loop 心跳正常"})
+		out = append(out, Alert{Key: "up"})
 	}
 	if cur.Halted() && (prev == nil || !prev.Halted()) {
-		reason := "原因未记录"
-		if cur.Risk.HaltReason != nil {
-			reason = *cur.Risk.HaltReason
-		}
-		out = append(out, Alert{"halt", "Flintrade 已暂停开新仓", reason})
+		out = append(out, Alert{Key: "halt", Reason: str(cur.Risk.HaltReason)})
 	}
 	if msg := tokenIssue(cur); msg != "" && (prev == nil || tokenIssue(prev) == "") {
-		out = append(out, Alert{"token", "Longbridge 凭证需要处理", msg})
+		out = append(out, Alert{Key: "token", Message: msg})
 	}
 	return out
+}
+
+func str(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func tokenIssue(s *Snapshot) string {

@@ -145,12 +145,18 @@ func (s *Store) Intent(ctx context.Context, id int64) (*Intent, error) {
 // DecideIntent records the executor's verdict:
 // approved | rejected | filled | expired | cancelled.
 func (s *Store) DecideIntent(ctx context.Context, id int64, status string, rejectReason *string) error {
+	return s.DecideIntentCoded(ctx, id, status, rejectReason, nil)
+}
+
+// DecideIntentCoded is DecideIntent with the reason also as a code
+// (reasoncode.Code.JSON), which Flintrade.app says in its own language.
+func (s *Store) DecideIntentCoded(ctx context.Context, id int64, status string, rejectReason, rejectCode *string) error {
 	if err := s.require(PermIntentsDecide); err != nil {
 		return err
 	}
 	_, err := s.q.ExecContext(ctx,
-		"UPDATE intents SET status=?, reject_reason=?, decided_at=? WHERE id=?",
-		status, rejectReason, Now(), id)
+		"UPDATE intents SET status=?, reject_reason=?, reject_code=?, decided_at=? WHERE id=?",
+		status, rejectReason, rejectCode, Now(), id)
 	return err
 }
 

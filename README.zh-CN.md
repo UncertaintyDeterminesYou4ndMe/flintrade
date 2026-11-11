@@ -12,9 +12,20 @@ flintrade 是一个单进程、多 loop 的常驻 daemon，用来对美股做模
 
 ## 桌面应用
 
-![Flintrade.app：权益、持仓、按标的战绩和各 loop 运行状况](docs/screenshots/flintrade-app.jpg)
+![Flintrade.app 总览：净值、持仓及其最新报价、按标的战绩和各 loop 运行状况](docs/screenshots/flintrade-app-zh.jpg)
 
-Flintrade.app 是 daemon 的桌面客户端：macOS 原生菜单栏应用加一个窗口，用 [MyGo](https://github.com/egoist/mygo) 写（原生 UI，没有 WebView）。菜单栏显示当日盈亏；daemon 停了、交易暂停、broker token 快过期时发通知。窗口里看权益、持仓、按标的战绩、成交、意图、教训和逐笔复盘。它能改 `trading.toml`、`strategies.toml` 和 prompt（保存前按严格规则校验，`risk.toml` 只读），也能更换长桥凭据（先用新凭据做一次只读调用验证）。它只读数据库、从不下单；退出 App 不影响交易。
+Flintrade.app 是 daemon 的桌面客户端：macOS 原生菜单栏应用加一个窗口，用 [MyGo](https://github.com/egoist/mygo) 写（原生 UI，没有 WebView）。界面有英文和简体中文，跟随系统语言，也可以在菜单栏菜单里固定一种。它只读数据库、从不下单；退出 App 不影响交易。
+
+- **菜单栏。** 平时只显示名字，出问题时多一个词（daemon 停了、暂停开新仓）。菜单里显示今日盈亏的金额和百分比；在“菜单栏显示”里可以把它放到标题上。daemon 停了、交易熔断、broker token 快过期时发通知。
+- **总览。** 净值拆成已实现和浮动两部分；持仓显示 risk monitor 最新看到的报价、全部打到止损时的亏损；还有按标的战绩、策略平仓累计曲线和每个 loop 的运行状况。
+- **成交和意图。** 都按美东交易日分组，每天一行汇总。没成交的意图会说明原因（风控检查、broker 或超时），并用界面语言显示：daemon 把每个原因存成“键 + 参数”，和原文放在一起（`internal/reasoncode`）。
+- **复盘。** 做梦产出的教训和计划，以及每笔平仓的复盘。
+- **策略和凭证。** 能改 `trading.toml`、`strategies.toml` 和 prompt（保存前按严格规则校验，`risk.toml` 只读），也能更换长桥凭据（先用新凭据做一次只读调用验证）。
+
+<p>
+  <img src="docs/screenshots/flintrade-app-intents-zh.jpg" alt="意图页：每条交易请求、状态和未成交原因" width="49%">
+  <img src="docs/screenshots/flintrade-app-fills-zh.jpg" alt="成交页：按美东交易日分组的成交" width="49%">
+</p>
 
 ```bash
 (cd cmd/flintrade-app && go tool mygo build -skip-dmg) && cp -R build/darwin-arm64/Flintrade.app /Applications/
